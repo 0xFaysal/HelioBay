@@ -99,7 +99,7 @@ export function advance(input: Snapshot, now: number): Snapshot {
     if ((!device.online || c.outcome === "timeout") && now < Date.parse(c.expiresAt)) continue;
     c.status = !device.online || c.outcome === "timeout" ? "timed-out" : c.outcome === "failure" ? "failed" : "acknowledged";
     if (c.status === "acknowledged" && c.command === "START" && s) {
-      try { validateStart(data, { id: c.actorId, role: data.users.find(u => u.id === c.actorId)!.role }, { stationId: s.stationId, bayId: s.bayId, vehicleId: s.vehicleId, ownerId: s.ownerId, requestId: s.id }, s.id); s.state = "charging"; s.updatedAt = iso; }
+      try { validateStart(data, { id: c.actorId, role: data.users.find(u => u.id === c.actorId)!.role }, { stationId: s.stationId, bayId: s.bayId, vehicleId: s.vehicleId, ownerId: s.ownerId, requestId: s.id }, s.id); s.state = "charging"; s.startedAt = iso; s.updatedAt = iso; }
       catch (e) { c.status = "failed"; c.message = (e as Error).message; }
     }
     if (c.status !== "acknowledged" && c.command === "START" && s) finish(data, s.id, c.status === "timed-out" ? "DEVICE_OFFLINE" : "FAULT", now);
