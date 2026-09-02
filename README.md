@@ -11,7 +11,7 @@ npm ci
 
 Copy `frontend/.env.example` to `frontend/.env.local`, then run `npm run dev`.
 
-Open http://localhost:3000 and select **Sign in → Continue in Demo Mode**. Open another tab at `/auth/sign-in?role=admin` for **Continue as Demo Admin**. Both roles share station, booking, charging and payment state while keeping separate tab-local sign-ins.
+Open http://localhost:3000 and select **Sign in → Continue in Demo Mode**. Open another tab at `/auth/sign-in?role=admin` for **Continue as Demo Admin**. Both roles share prepaid wallet, station, bay, direct charging and sandbox payment state while keeping separate tab-local sign-ins. Set `NEXT_PUBLIC_APP_MODE=demo` explicitly; the old DEMO_MODE flag no longer enables demo login.
 
 No Firebase, backend or payment credentials are needed in explicitly enabled Demo Mode. API Mode is a separate adapter and reports connection errors without inventing successful data.
 

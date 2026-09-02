@@ -1,182 +1,152 @@
-# HelioBay — frontend
+# HelioBay — prepaid solar EV charging
 
-Public website, EV Owner application, and Station Admin operations console inside the existing Next.js 16 App Router / React 19 / TypeScript / Tailwind CSS 4 / shadcn Base UI project. The existing design system, image assets, and npm lockfile are preserved.
+The existing Next.js App Router frontend now uses a **prepaid credit wallet and direct bay charging**. Public pages, Firebase authentication, EV Owner workflows and the Station Admin console share the existing white/green design, local concept imagery, Tailwind 4 and shadcn Base UI components.
 
-## Run locally
+## Setup
 
-Use Node 22.18+ or Node 24 (native TypeScript tests require a recent Node version).
+Use Node 22.18+ or Node 24 and the existing npm lockfile:
 
 ```sh
 npm ci
 ```
 
-Copy `.env.example` to `.env.local`, keeping these settings for a credential-free walkthrough:
-
-```dotenv
-NEXT_PUBLIC_APP_MODE=demo
-NEXT_PUBLIC_DEMO_MODE=true
-NEXT_PUBLIC_API_BASE_URL=
-NEXT_PUBLIC_WS_URL=
-```
+Copy `.env.example` to `.env.local`, set `NEXT_PUBLIC_APP_MODE=demo`, then:
 
 ```sh
 npm run dev
 ```
 
-Open http://localhost:3000. Choose **Sign in → Continue in Demo Mode** for Alex Morgan, or **Station Partner / Admin → Continue as Demo Admin** for the operator. Demo identities are explicitly local simulations, not a security mechanism.
+Open [localhost:3000](http://localhost:3000). Choose **Continue in Demo Mode** on sign-in. In another tab, visit `/auth/sign-in?role=admin` and choose **Continue as Demo Admin**.
 
-### Commands
+Demo authentication exists **only** when APP_MODE is exactly `demo`. Missing/invalid mode selects API. The old DEMO_MODE flag no longer enables login or changes the application mode.
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Development server |
-| `npm run build` | Production compilation and route generation |
-| `npm start` | Serve the production build |
+| `npm run dev` | Local development |
+| `npm run build` | Production build and route generation |
+| `npm start` | Serve production build |
 | `npm run lint` | ESLint and React checks |
-| `npm run typecheck` | Generate Next route types; check TypeScript |
-| `npm test` | Booking rules, deterministic engine and API-client tests |
-| `npm run test:e2e` | Browser journeys against a running server |
+| `npm run typecheck` | Next route types and TypeScript |
+| `npm test` | Integer wallet, charging safety and API-client tests |
+| `npm run test:e2e` | Browser tests against a running server |
 
-No formatter was configured in the original repository. No dependencies were added or upgraded for the Admin/IoT-ready extension.
+No packages were added or upgraded for this refactor. No formatter is configured. On the development workstation, the existing broken global npm shim can be bypassed with `node "C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js" run dev`.
 
-On this Windows workstation, a broken global npm shim can be bypassed with `node "C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js" run dev`. No global configuration change is necessary.
+## Walk through the product
 
-## Complete shared-demo walkthrough
+1. Sign in as Demo Owner. Alex Morgan has one EV and **500.00 Credits** of explicitly labelled demo seed credit.
+2. On Dashboard or Stations, choose **Use my location**. Denied, unavailable and timeout results have a manual area/landmark fallback. Demo distances use Haversine; API mode requests nearest stations from the backend.
+3. Inspect a station, get directions, then open **Connect and Start**. Select a vehicle, station and bay number.
+4. Use the explicitly labelled **Simulate plug connect** action. In API mode the ESP32 supplies this signal; the control is absent.
+5. Press **Start Charging**. The service validates account, credit, controller, bay, connector, plug and concurrent-session conditions. Credit is held before START; no energy is delivered until acknowledgement.
+6. View voltage, current, power, delivered energy, estimated battery/time, running cost, remaining held credit and the event timeline.
+7. Stop normally, disconnect, exhaust credit, fill the battery, or inject a device/fault condition from Admin. The final receipt freezes energy/cost, gives the exact reason and posts a single charging debit.
+8. In Wallet → Add Credits, try presets or enter a custom amount. Minimum is **10.00 Credits**; the configured default maximum is **5000.00**.
+9. Review BDT and Credits, then continue to the Sandbox. Demo mode redirects to a clearly labelled **local gateway simulator**, not a fake SSLCOMMERZ page.
+10. Try successful, pending, failed and cancelled outcomes. Success first verifies the payment. Only verification adds credit, and repeated callbacks never double-credit.
+11. Open Demo Admin in another tab. Block/reactivate the owner, inspect the full ledger and post a credit adjustment or reversal with a meaningful reason. Held funds cannot be silently removed.
+12. Manage stations and bays; each station has **one primary ESP32**, with unique relay/channel assignments per bay. Try START failure/timeout, full battery, unplug, offline, faults, Admin Stop and 1×/10×/60× speed.
+13. Explore searchable/exportable histories, printable receipts, vehicle CRUD/default selection, profile details and notification preferences.
 
-1. Enter the EV Owner demo. Existing sample vehicle, bookings, sessions, payments and refunds are seeded.
-2. Find **HelioBay Green Point**, device **ST001**, bay **BAY01**. Search, filter, save stations, switch map/list, and try location permission handling.
-3. Choose a future slot and compatible vehicle. Use `HELIO10`, try payment failure/retry, then choose bKash, Nagad, Card or Test payment. No credentials or real money are collected.
-4. Payment and reservation are recorded together with an idempotent request reference. Confirmation shows a demo QR pass; refresh preserves it.
-5. Open the live charging demo, simulate car arrival, and send START. Pending → acknowledged activates the simulated output. Energy, estimated battery, elapsed time, bill and chart update.
-6. Open a **separate tab** at `/auth/sign-in?role=admin` and enter Demo Admin. The owner remains signed in in its own tab.
-7. In Admin Devices, inspect ST001. Try failed/timeout acknowledgements, vehicle removal, offline/reconnect, sensor faults, battery/solar inputs, grid backup and idle grid export. Resolve blocking faults with a note in Maintenance before resuming.
-8. In Settings set Demo Speed to 10× or 60×. New sessions use the configured charge limit, pricing, peak multiplier and promotion.
-9. Normal STOP waits for acknowledgement. Emergency stop immediately disables demo output and latches a critical fault. Vehicle removal, charge limit and reserved-duration expiry also stop charging. Final energy/bill freeze; exactly one settlement and eligible refund are recorded.
-10. Disable or block a bay, edit a station, approve/reassign/cancel a reservation, approve a pending refund, export a filtered table or print a receipt. The owner view updates from the same store.
-11. Review dated analytics, telemetry timelines, fault notes and the audit trail. Pricing supports reset, discard and one-level rollback; existing reservations retain their booked rates.
-12. Owner vehicle CRUD/default selection, profile, notification preferences, booking/history search, cancellation and printable payment receipts remain available.
+## Wallet accounting
 
-Demo reservations may start early for walkthroughs. An expired reservation needs a confirmed Admin time override; this never bypasses payment, vehicle presence, bay or fault checks. QR passes are marked `HELIOBAY-DEMO` and cannot unlock real equipment.
-
-### Persistence and simulator limits
-
-- Versioned Zustand local persistence shares network and owner records. Demo identity is **tab-local session storage**, so simultaneous owner/admin windows do not sign each other out.
-- A single root runtime schedules updates. Same-origin Web Locks serialize commands, transactions and ticks across tabs; storage events synchronize views. Without Web Locks the fallback is suitable for a single tab, not transactional multi-tab use.
-- The engine is a pure function of snapshot and supplied clock. Wall-clock catch-up is capped at five seconds per tick; closing the app does not simulate unattended hardware charging.
-- Device and session timelines retain 60 points; commands and acknowledgements retain 200; audit entries retain 500; network meter history retains 240 ticks. Cumulative meter totals survive history trimming.
-- Older demo reservations/payments are retained. Legacy unfinished sessions require a new vehicle/device handshake after migration.
-- Prototype readings are approximately 3.0–4.2 V and up to 0.48 A, with configured taper. Prototype Wh and EV-equivalent kWh are distinct: `Wh × model scale ÷ 1000`. Demo time acceleration is a separate factor.
-- Remaining time is an estimate from capacity, state of charge, voltage, current and taper; missing/stale readings show unavailable. Battery sense is not certified BMS data.
-- Solar contribution is energy-weighted. Analytics separate scaled EV delivery from retained prototype solar-generation/grid/export counters. Non-solar delivery is not claimed to be certified grid metering.
-- This browser simulation is not a physical safety controller or a production database.
-
-## Modes and Firebase configuration
-
-| Variable | Meaning |
-| --- | --- |
-| `NEXT_PUBLIC_APP_MODE` | `demo` or `api`; explicit `api` never falls back to seeded success |
-| `NEXT_PUBLIC_DEMO_MODE` | Exact `true` permits explicit demo sign-in |
-| `NEXT_PUBLIC_API_BASE_URL` | Backend REST origin/base path in API mode |
-| `NEXT_PUBLIC_WS_URL` | Backend WebSocket endpoint, not an ESP32 or MQTT address |
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase Web public API key |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Authentication domain |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase Web app identifier |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Optional Firebase public configuration |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Optional Firebase public configuration |
-| `NEXT_PUBLIC_SITE_URL` | Canonical site origin; defaults to localhost |
-
-For legacy demo setup, omitted APP_MODE plus DEMO_MODE=true selects demo. Missing/invalid mode without explicit demo permission selects API. Demo mode requires explicit permission; API failure never switches adapters.
-
-Enable Firebase Email/Password and Google sign-in; authorize localhost and your deployment domain. The Firebase client initializes once, supports signup/login/reset/logout, and obtains ID tokens for the API. Production Admin access uses a Firebase custom claim `role: "admin"`, set only by a trusted backend. Client route guards are UX boundaries; backend authorization is mandatory.
-
-For API mode, set APP_MODE=api and normally DEMO_MODE=false, then configure Firebase and the backend URLs. Restart/rebuild after changing public variables. Do not put private keys, provider secrets, MQTT passwords or service-account files in NEXT_PUBLIC variables. Ignored local environment files are not committed.
-
-## Architecture and backend handoff
-
-**Website → Backend API → MQTT broker → ESP32.** No direct browser-to-ESP32 connection, MQTT client, or embedded MQTT credentials are implemented.
-
-| Location | Responsibility |
-| --- | --- |
-| `types/` | Station, Bay, Device, Booking, Session, Telemetry, Command/ACK, Payment, Refund, Fault, Maintenance, Audit and Pricing models |
-| `lib/platform/contracts.ts` | Replaceable station, booking, payment, charging, device, telemetry, Admin and realtime service contracts |
-| `lib/platform/demo*.ts` | Validated demo operations and atomic shared-state mutations |
-| `lib/demo/engine.ts` | Deterministic charging/command/safety/settlement engine |
-| `lib/platform/api.ts` | REST adapter; no mock success path |
-| `lib/platform/schemas.ts` | Zod validation of external snapshots, entities and realtime envelopes |
-| `lib/api/client.ts` | JSON errors, 8-second timeout, AbortSignal, Firebase bearer token, 401 handling, one safe GET retry |
-| `lib/realtime/client.ts` | Configurable WebSocket abstraction with bounded backoff, cleanup and validated messages |
-| `components/shared/platform-runtime.tsx` | Shared demo loop or API/realtime lifecycle, never both |
-| `store/` | Hydration-safe shared cache and local demo persistence |
-| `lib/services/` | Existing owner-facing service facades and booking rules |
-| `components/admin/` | Role-guarded operational workflows, accessible dialogs, mobile tables/cards |
-| `docs/API-CONTRACT.md` | Exact REST payloads, response shapes, event examples, units and server responsibilities |
-
-Read [the API contract](docs/API-CONTRACT.md) before implementing the backend. The adapter uses a token-scoped `GET /platform/snapshot` for coherent owner/Admin state plus `/stations`, `/bookings`, `/payments/simulate`, `/charging-sessions/*`, `/admin/devices/:id/commands`, `/admin/faults/*`, `/admin/pricing` and other documented operations. There is no operational server hidden behind these interfaces.
-
-WebSocket connects to the **backend**. Authentication is sent in the first message, never query-string credentials. Telemetry, acknowledgements, session updates and invalidation events are validated. Old telemetry/session updates are ignored. Pending commands time out as delivery-unknown; API mode does not pretend that an unreachable charger turned off. Browser controls never replace a physical emergency switch/watchdog.
+- **1 BDT = 1 Credit**, represented as integer minor units: 10.01 Credits = 1001.
+- Decimal input is parsed lexically with BigInt. Money never passes through floating-point decimal arithmetic.
+- Meter energy is integer **milli-Wh** (`energyMWh`): 1 kWh = 1,000,000 units. This is not megawatt-hours.
+- Session cost rounds cumulative energy cost **up** once to the smallest minor unit, avoiding per-tick rounding drift.
+- Maximum affordable energy rounds down. Energy is capped before applying its cost, so the credit balance cannot become negative.
+- All available credit is held at START. A session's budget and tariff stay fixed; a top-up during charging does not extend its hold.
+- The wallet's stored balance excludes unposted session debits. Current balance subtracts accrued active cost; available balance subtracts the full hold. Completion posts one debit and releases unused credit.
+- Adjustments/reversals append reasoned ledger records and audit events; they never replace or erase earlier entries.
+- Failed/pending/cancelled top-ups have no wallet credit. A browser success URL is never payment authority.
 
 ## Routes
 
-### Public and authentication
+### Public and auth
 
-`/`, `/stations`, `/stations/[stationId]`, `/how-it-works`, `/pricing`, `/sustainability`, `/auth/sign-in`, `/auth/sign-up`, `/auth/forgot-password`, `/privacy`, `/terms`.
-
-`/partner` redirects to the guarded Admin application. Unknown stations show an unavailable/not-found state; unknown private IDs show account-scoped empty states.
+`/`, `/stations`, `/stations/[stationId]`, `/how-it-works`, `/pricing`, `/sustainability`, `/privacy`, `/terms`, `/auth/sign-in`, `/auth/sign-up`, `/auth/forgot-password`.
 
 ### EV Owner
 
-`/dashboard`, `/bookings`, `/bookings/[bookingId]`, `/charging/[sessionId]`, `/vehicles`, `/history`, `/payments`, `/payments/[paymentId]`, `/profile`.
+`/dashboard`, `/wallet`, `/wallet/top-up`, `/wallet/transactions`, `/charge`, `/charging/[sessionId]`, `/history`, `/vehicles`, `/profile`, `/payment/success`, `/payment/fail`, `/payment/cancel`.
+
+Additional demo-only gateway: `/wallet/sandbox/[paymentId]`. Result pages accept a `paymentId` query parameter and query the payment service.
 
 ### Station Admin
 
-| Route | Features |
+`/admin`, `/admin/users`, `/admin/users/[userId]`, `/admin/stations`, `/admin/stations/[stationId]`, `/admin/bays`, `/admin/devices`, `/admin/sessions`, `/admin/wallet-transactions`, `/admin/payments`, `/admin/analytics`, `/admin/faults`, `/admin/settings`.
+
+`/partner` still redirects into the guarded Admin application.
+
+### Removed from the active app
+
+`/bookings`, `/bookings/[bookingId]`, `/payments`, `/payments/[paymentId]`, `/admin/bookings`, `/admin/refunds` and `/admin/maintenance` no longer have route files. Wallet transactions replace payment history; faults/audit replaces maintenance.
+
+Reusable earlier components, legacy rules and tests remain in Git, but are not imported by active routes or selected by the current browser suite. Earlier browser storage remains untouched. This refactor uses a separate versioned credit store; old reservation advances are **not converted into Credits**.
+
+## Environment and Firebase
+
+| Variable | Purpose |
 | --- | --- |
-| `/admin` | Network KPIs, map, energy flow, charts, live sessions, arrivals and alerts |
-| `/admin/stations` | Add/edit/search/filter/sort stations, details drawer and availability |
-| `/admin/stations/[stationId]` | Full station details and bay management |
-| `/admin/bays` | Enable/block/maintenance and device assignment |
-| `/admin/devices` | Telemetry, command/ACK lifecycle and demo test panel |
-| `/admin/bookings` | Approval, cancellation, refund estimate and bay reassignment |
-| `/admin/sessions` | Active/completed sessions, stop control and telemetry timeline |
-| `/admin/payments` | Transactions, details, CSV and printable receipt |
-| `/admin/refunds` | Pending/completed refunds and simulated approval |
-| `/admin/analytics` | Date range, accessible charts/data tables, energy/revenue/impact and CSV |
-| `/admin/maintenance` | Fault triage, acknowledgement/resolution notes, maintenance and audit |
-| `/admin/settings` | Validated pricing, rollback, demo speed and connection configuration |
+| `NEXT_PUBLIC_APP_MODE` | Exactly `demo` or `api`; default API |
+| `NEXT_PUBLIC_API_BASE_URL` | Backend HTTP(S) REST base path |
+| `NEXT_PUBLIC_WS_URL` | Backend WebSocket URL, no query credentials |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase Web public configuration |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Auth domain |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Web app identifier |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Optional public Firebase setting |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Optional public Firebase setting |
+| `NEXT_PUBLIC_SITE_URL` | Canonical website origin |
+
+Enable Email/Password and Google providers in Firebase. Authorize localhost and your deployment domain. Admin access uses the Firebase custom claim `role: "admin"`, set only by a trusted backend. The SDK initializes once, manages credentials and attaches fresh ID tokens to REST requests. Client route protection is UX, **not backend authorization**.
+
+Use APP_MODE=api with Firebase and both backend URLs for integration. Rebuild after changing public variables. No SSLCOMMERZ store ID/password, Firebase Admin private key, MQTT password or backend secret belongs in NEXT_PUBLIC variables. The backend creates the gateway session.
+
+## Active architecture
+
+| Location | Responsibility |
+| --- | --- |
+| `lib/credit/model.ts` | Zod schemas and typed service models |
+| `lib/credit/money.ts` | Exact decimal input, integer cost/caps, trusted redirect validation |
+| `lib/credit/engine.ts` | Pure deterministic commands, metering and settlement |
+| `lib/credit/seed.ts` | Explicit demo fixtures; empty API initial state |
+| `lib/credit/selectors.ts` | Derived wallet views, bay state and Haversine |
+| `lib/credit/services.ts` | Users, wallet/payments, stations, bays, devices, charging and Admin contracts; demo/API adapters |
+| `store/credit-store.ts` | Validated, hydration-safe cache and demo persistence |
+| `components/credit/runtime.tsx` | One shared demo loop or authenticated backend realtime lifecycle |
+| `components/credit/` | Active owner/Admin/station/payment interfaces |
+| `components/shared/providers.tsx` | Firebase auth and reduced-motion provider |
+| `lib/api/client.ts` | Bearer auth, error mapping, cancellation, timeout and safe GET retry |
+
+See [the current backend contract](docs/API-CONTRACT.md) for payloads, units, gateway callbacks and authoritative safety requirements.
+
+**Website → backend → MQTT → ESP32**. The browser never talks to ESP32/MQTT directly. API errors do not activate the demo adapter. Data is schema-validated before applying; account changes clear API cache. WebSocket authentication is sent in its first message. Unsupported/corrupt payloads are rejected; stale data is visibly marked. A timed-out command means delivery unknown, not “charger stopped.”
+
+## Demo persistence and fidelity
+
+- State key: `heliobay-credit-v3`; tab-local identity: `heliobay-credit-identity`.
+- Web Locks serialize demo transactions between tabs. Storage events synchronize their views without sharing identity. Without Web Locks, use one tab.
+- Deterministic, bounded ticks; maximum wall-clock catch-up is five seconds. Inactive-browser communication gaps trigger safe demo termination.
+- Rolling power history retains 60 points; command history 200; operational audit 500. Ledger/session history persists until site storage is cleared.
+- Approximately 3.0–4.2 V and up to 0.48 A drive a scaled EV-energy model. Above 80% battery the current tapers. Model scale and simulation time speed are distinct.
+- UI labels distinguish **DEMO MODE**, **SANDBOX**, **ESTIMATED**, **DIGITAL TWIN** and real backend **LIVE** data.
+- Environmental dashboard values are illustrative, not certified emissions measurements.
+- Demo data is fictional and browser-local. It is not production accounting, security or a physical safety controller.
 
 ## Verification
 
-See [the verification report](docs/VERIFICATION.md) for the latest results and environment notes.
+See [verification results](docs/VERIFICATION.md). Browser tests use the installed Microsoft Edge through Playwright; on another machine install Edge or change the channel to installed Chromium.
 
-Automated checks include 29 unit tests covering booking/refund boundaries, duplicate-bay prevention, START prerequisites, pending/success/failure/timeout ACKs, deterministic telemetry, settlement idempotency, automatic completion, vehicle/offline/fault safety, bounded history, legacy migration, API abort/timeout/auth/schema errors and explicit mode selection.
+Set `TEST_BASE_URL` to your running dev/production server. Screenshots, traces and build output are ignored by Git. Old booking suites are retained but not active.
 
-The demo browser suites cover the complete owner journey plus cross-tab Admin operations, station CRUD, table export/pagination/sorting, approval/reassignment/cancellation, pricing rollback, refund approval, command failures, mobile navigation and role separation. Responsive sweeps cover 390, 768, 1024 and 1440px; Admin routes are checked at 390 and 1440px with console/runtime and overflow assertions.
+For isolated API failure testing, start another dev process with `HELIOBAY_TEST_API=true`, `NEXT_PUBLIC_APP_MODE=api`, empty backend URLs and port 3002. The old DEMO_MODE flag may deliberately be true to test that it cannot unlock demo login. Run `tests/e2e/api-mode.spec.ts` with `TEST_APP_MODE=api` and `TEST_BASE_URL=http://localhost:3002`. The isolated build uses `.next-api`.
 
-Browser tests use installed Microsoft Edge. On other machines, change `channel` in `playwright.config.ts` or remove it and install Playwright Chromium. Set TEST_BASE_URL to a running server (for example http://localhost:3001 for a production server on port 3001). Screenshots and failure traces are ignored by Git.
+## What needs real systems
 
-The separate API failure smoke test runs only when TEST_APP_MODE=api. Start a second dev process on port 3002 with HELIOBAY_TEST_API=true, NEXT_PUBLIC_APP_MODE=api and empty backend URLs. This uses ignored `.next-api` output; DEMO_MODE=true can be retained for a test-only local identity without enabling fake API data. Run the API spec with TEST_BASE_URL=http://localhost:3002 and TEST_APP_MODE=api:
+- Token-verified, role/owner-scoped backend and transactional wallet/session database.
+- Backend SSLCOMMERZ Sandbox session creation, signed/provider-validated notifications, amount/currency matching and idempotent credit posting.
+- Authenticated MQTT bridge, durable command IDs/ACKs, calibrated telemetry, device watchdogs and physical safety interlocks.
+- Real location directory/geocoding, production notification delivery, durable audit/retention and compliant invoices/policies.
 
-```sh
-npx playwright test tests/e2e/api-mode.spec.ts
-```
-
-Real Firebase, payment-provider and hardware end-to-end checks require configured services. Restricted test networks may block OpenStreetMap tiles; the visible fallback preserves station markers/list controls and is tested.
-
-## Images and packages
-
-Original generated concept images are retained; optimized local WebP assets use next/image with fallbacks. See [asset provenance](docs/ASSETS.md). No additional imagery was needed for the Admin extension.
-
-Prompt 1 added Motion, Firebase, React Hook Form, Zod/resolvers, date-fns, Leaflet, Sonner, Leaflet types and Playwright/tsx tooling, while reusing existing Lucide, Zustand, Recharts, React Leaflet and React QR Code. Prompt 2 adds no dependencies or overlapping UI framework.
-
-Reduced-motion preferences, keyboard focus, accessible Base UI dialogs/sheets, responsive tables and lazy chart/map imports are preserved. Environmental values are demonstrative: solar-delivered kWh × 0.4 kg CO₂ is an illustrative estimate, not a certified claim.
-
-## Work that requires real systems
-
-- Authenticated API/database with Firebase token verification, scoped ownership/Admin roles, server time and transactional reservation locks.
-- Durable command queue, authenticated backend MQTT transport, firmware ACK correlation, independent device watchdog and physical safety interlocks.
-- Calibrated INA3221/battery-sense telemetry, signed/expiring QR passes, real charging limits and certified metering where required.
-- bKash/Nagad/card gateways, verified webhooks, settlement/refund processing and compliant tax invoices.
-- Durable operational audit/history, real notifications, monitoring, retention policy and reviewed production terms.
-
-The existing backend folder remains unchanged. This deliverable is a functional frontend/demo and a documented integration boundary—not a production MQTT or payment implementation.
+The existing backend folder is preserved, not replaced by a fake server. Original generated images remain optimized under `public/images`; see [asset provenance](docs/ASSETS.md).
