@@ -27,7 +27,7 @@ function applyEvent(event: RealtimeEvent) {
       return { network: { ...state.network, acknowledgements: [ack, ...state.network.acknowledgements].slice(0, 200), commands: state.network.commands.map(c => c.commandId === ack.commandId ? { ...c, status: ack.success ? "acknowledged" : "failed" } : c) } };
     }
     const session = event.data;
-    const owners = Object.fromEntries(Object.entries(state.owners).map(([id, owner]) => [id, owner.bookings.some(b => b.id === session.bookingId) ? {
+    const owners = Object.fromEntries(Object.entries(state.owners).map(([id, owner]) => [id, owner.bookings.some(b => b.id === session.bookingId) && !owner.sessions.some(s => s.id === session.id && (s.status === "completed" || Date.parse(s.updatedAt) >= Date.parse(session.updatedAt))) ? {
       ...owner, sessions: [session, ...owner.sessions.filter(s => s.id !== session.id)],
     } : owner]));
     return { owners };

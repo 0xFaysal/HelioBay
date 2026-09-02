@@ -1,6 +1,6 @@
 # HelioBay — Smart Solar EV Charging Network
 
-The public website and complete EV Owner frontend live in [`frontend/`](frontend/README.md). The existing [`backend/`](backend/) dependency setup is preserved for the future API and charger integration.
+The public website, EV Owner app, Station Admin console and shared charging simulator live in [frontend/](frontend/README.md). The existing [backend/](backend/) package setup is preserved for real API and charger integration.
 
 ## Run the frontend
 
@@ -9,20 +9,18 @@ cd frontend
 npm ci
 ```
 
-Copy `frontend/.env.example` to `frontend/.env.local`, then run:
+Copy `frontend/.env.example` to `frontend/.env.local`, then run `npm run dev`.
 
-```sh
-npm run dev
-```
+Open http://localhost:3000 and select **Sign in → Continue in Demo Mode**. Open another tab at `/auth/sign-in?role=admin` for **Continue as Demo Admin**. Both roles share station, booking, charging and payment state while keeping separate tab-local sign-ins.
 
-Open `http://localhost:3000`, choose **Sign in → Continue in Demo Mode**, and explore the complete booking-to-charging journey. No backend or payment credentials are needed for the demo.
+No Firebase, backend or payment credentials are needed in explicitly enabled Demo Mode. API Mode is a separate adapter and reports connection errors without inventing successful data.
 
-See the frontend README for Firebase setup, all routes, tests, architecture, asset provenance, and the production integration checklist.
+See [frontend setup and verification](frontend/README.md) for routes, mode/Firebase variables, tests and simulator limits. See [backend/API and realtime contract](frontend/docs/API-CONTRACT.md) for the integration handoff.
 
 ## Repository contents
 
-- `frontend/`: Next.js application, local assets, tests, and documentation.
-- `backend/`: existing backend package configuration; no operational API is implemented by this frontend task.
-- `output/imagegen/`: original generated concept imagery and generation prompts. Optimized copies used by the site are in `frontend/public/images/`.
+- `frontend/`: existing Next.js application, generated local assets, owner/Admin features, simulator, API adapters, tests and documentation.
+- `backend/`: original backend dependency setup; no operational API is implemented by the frontend.
+- `output/imagegen/`: original concept imagery and prompts; optimized copies are in `frontend/public/images/`.
 
-Environment files, dependencies, build output, and browser-test artifacts are excluded from Git. Repository creation and pushing are left to the project owner, as requested.
+Environment files, dependencies, build output and browser-test artifacts are excluded from Git. No MQTT credentials or payment secrets belong in the frontend.

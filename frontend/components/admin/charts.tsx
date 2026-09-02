@@ -1,6 +1,6 @@
 "use client";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from "recharts";
-export interface ChartPoint { date: string; solar: number; demand: number; revenue: number; grid: number; exported: number; sessions: number; duration: number }
+export interface ChartPoint { date: string; solar: number; demand: number; revenue: number; grid: number; exported: number; sessions: number; duration: number; generationWh: number; gridBackupWh: number; exportWh: number }
 export default function OperationsChart({ data, series, label }: { data: ChartPoint[]; series: { key: keyof ChartPoint; name: string; color: string }[]; label: string }) {
   return <figure aria-label={label}><div className="admin-chart"><ResponsiveContainer width="100%" height={240} minWidth={0} initialDimension={{ width: 600, height: 240 }}><AreaChart data={data} margin={{ top: 12, left: 0, right: 12, bottom: 0 }} accessibilityLayer>
     <CartesianGrid vertical={false} stroke="#e9efeb" /><XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={s => s.slice(5)} axisLine={false} tickLine={false} minTickGap={20} /><YAxis width={42} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ borderRadius: 12, borderColor: "#DCE6E0", fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} />{series.map(s => <Area key={s.key} type="monotone" dataKey={s.key} name={s.name} stroke={s.color} fill={s.color} fillOpacity={.07} strokeWidth={2} isAnimationActive={false} />)}

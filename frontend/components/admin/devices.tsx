@@ -57,11 +57,11 @@ function DeviceInspector({ id }: { id: string }) {
   return <section className="panel device-inspector">
     <div className="panel-top"><div><p className="eyebrow !mb-2">ESP32 DEVICE</p><h2 className="text-2xl">{id}</h2></div><Status good={device.online}>{device.online ? "Online" : "Offline"}</Status></div>
     <p className="text-xs muted mb-4">{station?.name} · {device.bayId}</p>
-    <div className="data-row"><span>Firmware</span><code>{device.firmware}</code></div><div className="data-row"><span>Last seen</span><span>{dateTime(device.lastSeen)}</span></div><div className="data-row"><span>MQTT transport</span><span>{isDemo ? "Simulated backend → ESP32" : "Backend managed"}</span></div><div className="data-row"><span>MOSFET / charger</span><Status good={device.mosfetOn}>{device.mosfetOn ? "ON" : "OFF"}</Status></div><div className="data-row"><span>Vehicle detected</span><span>{device.vehicleDetected ? "Yes" : "No"}</span></div>
+    <div className="data-row"><span>Firmware</span><code>{device.firmware}</code></div><div className="data-row"><span>Last seen</span><span>{dateTime(device.lastSeen)}</span></div><div className="data-row"><span>MQTT transport</span><span>{isDemo ? "Simulated backend → ESP32" : "Backend managed"}</span></div><div className="data-row"><span>MOSFET / charger</span><Status good={!stale && device.mosfetOn}>{stale ? "Unknown / stale" : device.mosfetOn ? "ON" : "OFF"}</Status></div><div className="data-row"><span>Vehicle detected</span><span>{device.vehicleDetected ? "Yes" : "No"}</span></div>
     <div className="telemetry-grid mt-5">{[
       ["Solar voltage", reading(t?.solarVoltage, "V")], ["Solar current", reading(t?.solarCurrent, "A")], ["Solar power", reading(t?.solarPower, "W")],
       ["Battery sense", reading(t?.carBatteryVoltage, "V")], ["Charging current", reading(t?.chargingCurrent, "A")], ["Charging power", reading(t?.chargingPower, "W")],
-      ["Metered energy", reading(t?.energyWh, "Wh")], ["Station battery", `${device.stationBattery.toFixed(0)}%`],
+      ["Metered energy", reading(t?.energyWh, "Wh")], ["Station battery", stale ? "Unavailable" : `${device.stationBattery.toFixed(0)}%`],
     ].map(([l, v]) => <div key={l}><span>{l}</span><strong>{v}</strong></div>)}</div>
     <p className="text-[11px] muted mt-3">{isDemo ? "Simulated INA3221 readings. " : "Backend telemetry. "}{stale ? "Telemetry is missing or stale." : "Battery-sense percentage is estimated, not certified BMS data."}</p>
     <CommandStatusPanel deviceId={id} />

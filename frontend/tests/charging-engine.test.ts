@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createNetwork } from "../lib/demo/network-seed.ts";
 import { createOwnerData, demoAccounts } from "../lib/demo/seed.ts";
+import { migrateDemo } from "../lib/demo/migration.ts";
 import { advanceEngine, assertStart, issueCommand, finishSession, estimateRemainingMinutes } from "../lib/demo/engine.ts";
 import type { PlatformSnapshot, Session } from "../types/index.ts";
 const now = Date.parse("2026-09-02T08:00:00Z");
@@ -17,6 +18,7 @@ const session = (d: PlatformSnapshot) => d.owners["demo-owner"].sessions[0];
 function start(d = fixture()) { issueCommand(d, demoAccounts.owner, "ST001", "START", "S-1", false, now, "CMD-1"); return advanceEngine(d, now + 1500); }
 test("charging prerequisites reject missing identity, presence, connection, payment, bay and faults", () => {
   assert.throws(() => assertStart(fixture(), null, "ST001", "S-1"), /Sign in/);
+  assert.throws(() => issueCommand(fixture(), demoAccounts.admin, "ST001-2", "STOP", "S-1", false, now, "MISMATCH"), /different device/);
   for (const change of [
     (d: PlatformSnapshot) => { d.network.devices[0].vehicleDetected = false; },
     (d: PlatformSnapshot) => { d.network.devices[0].online = false; },
@@ -85,4 +87,16 @@ test("remaining time handles missing data and taper", () => {
   assert.equal(estimateRemainingMinutes(3.7, null, 3.9, .48, .75), null);
   assert.equal(estimateRemainingMinutes(3.7, 60, 3.9, 0, .75), null);
   assert.ok(estimateRemainingMinutes(3.7, 60, 3.9, .48, .75)! > estimateRemainingMinutes(3.7, 60, 3.9, .48, 1)!);
+});
+
+
+
+test("legacy demo sessions preserve progress but require a new handshake", () => {
+  const d = start(); const legacy = session(d); delete legacy.deviceId; delete legacy.bayId;
+  const migrated = migrateDemo({ owners: d.owners });
+  assert.equal(session(migrated).deviceId, "ST001");
+  assert.equal(session(migrated).status, "waiting");
+  assert.equal(session(migrated).power, 0);
+  assert.equal(session(migrated).energy, legacy.energy);
+  assert.equal(migrated.owners["demo-owner"].payments.length, d.owners["demo-owner"].payments.length);
 });

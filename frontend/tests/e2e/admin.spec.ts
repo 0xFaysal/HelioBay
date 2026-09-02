@@ -119,3 +119,47 @@ test("owner STOP acknowledgement settles once; charge limit auto-completes at ac
   await expect(page.getByRole("heading", { name: "A little cleaner. A little further." })).toBeVisible();
   await expect(page.getByText("Charge limit reached", { exact: true })).toBeVisible(); await admin.close();
 });
+
+
+test("station editing, table export, reservation reassignment and pricing rollback", async ({ page }) => {
+  await login(page, "admin"); await page.goto("/admin/stations");
+  await page.getByRole("button", { name: "Add station", exact: true }).click();
+  await page.getByLabel("Station name", { exact: true }).fill("HelioBay Riverfront");
+  await page.getByLabel("Address", { exact: true }).fill("River Road, Dhaka");
+  await page.getByLabel("Landmark", { exact: true }).fill("Riverfront park");
+  await page.getByRole("button", { name: "Save station", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await page.getByLabel("Search stations").fill("Riverfront");
+  await page.locator(".admin-desktop-table").getByRole("button", { name: /^Inspect / }).click();
+  await page.getByRole("button", { name: "Edit station", exact: true }).click();
+  await page.getByLabel("Price per kWh (৳)", { exact: true }).fill("27");
+  await page.getByRole("button", { name: "Save station", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page.locator(".admin-desktop-table")).toContainText("27");
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export visible CSV", exact: true }).click();
+  expect((await downloaded).suggestedFilename()).toBe("heliobay-stations.csv");
+  await page.getByLabel("Search stations").fill("");
+  await page.getByRole("button", { name: "Station ↑", exact: true }).click();
+  await expect(page.locator('th[aria-sort="descending"]')).toContainText("Station");
+  await page.goto("/admin/devices");
+  await page.getByRole("button", { name: "Next devices page" }).click();
+  await expect(page.getByText(/Page 2 of/)).toBeVisible();
+
+  await page.goto("/admin/bookings");
+  await page.getByRole("button", { name: "Inspect HB-DEMO01", exact: true }).click();
+  await confirm(page, "Approve booking");
+  await expect(page.getByRole("button", { name: "Approved", exact: true })).toBeDisabled();
+  await page.getByLabel("Reassign bay", { exact: false }).selectOption("BAY02");
+  await confirm(page, "Reassign bay");
+  await expect(page.getByLabel("Reassign bay", { exact: false })).toHaveValue("BAY02");
+  await confirm(page, "Cancel booking");
+  await expect(page.getByRole("button", { name: "Cancel booking", exact: true })).toBeHidden();
+
+  await page.goto("/admin/settings");
+  await page.getByLabel("Price per kWh (৳)", { exact: false }).fill("24");
+  await page.getByRole("button", { name: "Save pricing", exact: true }).click();
+  await expect(page.getByText("All changes saved")).toBeVisible();
+  await confirm(page, "Roll back last pricing change");
+  await expect(page.getByLabel("Price per kWh (৳)", { exact: false })).toHaveValue("18");
+});

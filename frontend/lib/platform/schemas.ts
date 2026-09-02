@@ -36,7 +36,7 @@ export const commandSchema = z.object({
 export const acknowledgementSchema = z.object({ commandId: id, deviceId: id, success: z.boolean(), state: z.string(), message: z.string().max(500), receivedAt: iso });
 export const deviceSchema = z.object({
   id, stationId: id, bayId: id, online: z.boolean(), vehicleDetected: z.boolean(), mosfetOn: z.boolean(),
-  firmware: z.string(), lastSeen: iso, stationBattery: percent, solarPower: positive.max(10), gridBackup: z.boolean(),
+  firmware: z.string(), lastSeen: iso, stationBattery: percent, solarPower: positive.max(1000000), gridBackup: z.boolean(),
   gridExport: z.boolean(), sensorFault: z.boolean(), testMode: z.boolean(), commandOutcome: z.enum(["success", "failure", "timeout"]),
   telemetry: telemetrySchema.optional(), timeline: z.array(telemetrySchema).max(240),
 });

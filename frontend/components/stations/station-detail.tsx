@@ -1,4 +1,6 @@
 "use client";
+import { isDemo } from "@/lib/config";
+import { useClock } from "@/hooks/use-clock";
 import { useDemoStore } from "@/store/demo-store";
 import { ConnectionStatus } from "@/components/shared/connection-status";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,11 +14,15 @@ import { BookingForm } from "@/components/stations/booking-form";
 export function StationDetail({ id }: { id: string }) {
   const hydrated = useDemoStore(s => s.hydrated);
   const network = useDemoStore(s => s.network);
+  const owners = useDemoStore(s => s.owners);
+  const now = useClock();
   const loading = useDemoStore(s => s.apiLoading);
   const error = useDemoStore(s => s.apiError);
   const station = network.stations.some(s => s.id === id) ? stationService.get(id) : undefined;
   if (!hydrated || loading && !station) return <PublicShell><div className="container-wide py-16"><Skeleton className="h-12 w-72 mb-8" /><Skeleton className="h-96 w-full" /></div></PublicShell>;
   if (!station) return <PublicShell><div className="container-wide py-16"><ConnectionStatus /><h1 className="text-3xl">{error ? "Station data unavailable." : "Station not found."}</h1><Link className="action action-outline mt-6" href="/stations">Back to stations</Link></div></PublicShell>;
+  const device = network.devices.find(d => d.id === station.deviceId);
+  const solar = device?.online && device.telemetry && now - Date.parse(device.telemetry.timestamp) <= 30000 ? device.telemetry.solarPower : null;
   return (
     <PublicShell><div className="container-wide">
         <ConnectionStatus /><div className="page-intro">
@@ -78,16 +84,18 @@ export function StationDetail({ id }: { id: string }) {
               <span>{station.deviceId}</span>
             </div>
             <div className="data-row">
-              <span>Solar production (demo)</span>
-              <span>{(station.power * station.solar / 100).toFixed(1)}kW</span>
+              <span>{isDemo ? "Simulated solar production" : "Reported solar production"}</span>
+              <span>{solar == null ? "Unavailable" : `${solar.toFixed(2)} W`}</span>
             </div>
             <h3 className="text-lg mt-7 mb-4">Live bay availability</h3>
-            <div className="flex gap-2 flex-wrap">{Array.from({
-                length: station.bays
-              }, (_, i) => <span
-                className={`px-4 py-3 rounded-lg text-xs border ${i < station.available && station.online ? "bg-green-50 text-green-800" : "bg-muted muted"}`}
-                key={i}>BAY{String(i + 1).padStart(2, "0")}· {!station.online ? "Offline" : i < station.available ? "Available" : "Occupied"}</span>)}</div>
-            <p className="text-[10px] muted mt-3">Demo availability. Your chosen time is rechecked when payment completes.</p>
+            <div className="flex gap-2 flex-wrap">{network.bays.filter(b => b.stationId === id).map(bay => {
+              const online = network.devices.find(d => d.id === bay.deviceId)?.online;
+              const occupied = Object.values(owners).some(o => o.bookings.some(b => b.stationId === id && b.bayId === bay.id && (b.status === "charging" || b.status === "upcoming" && Date.parse(b.start) <= now && Date.parse(b.start) + b.duration * 60000 > now)));
+              const status = !station.online || !online ? "Offline" : !bay.enabled ? "Disabled" : bay.maintenance || station.maintenance ? "Maintenance" : bay.blocked ? "Blocked" : occupied ? "Occupied" : "Available";
+              return <span className={`px-4 py-3 rounded-lg text-xs border ${status === "Available" ? "bg-green-50 text-green-800" : "bg-muted muted"}`} key={bay.id}>{bay.id} · {status}</span>;
+            })}</div>
+            {!network.bays.some(b => b.stationId === id) && <p className="text-xs muted">Bay-level telemetry is not available. Availability is rechecked when you reserve.</p>}
+            <p className="text-[10px] muted mt-3">{isDemo ? "Demo availability. " : "Reported availability. "}Your chosen time is rechecked when payment completes.</p>
             <h3 className="text-lg mt-7 mb-4">While you recharge</h3>
             <div className="flex flex-wrap gap-4 text-xs muted">{station.amenities.map((a, i) => {
                 const Icon = [Wifi, Coffee, ShieldCheck][i % 3];

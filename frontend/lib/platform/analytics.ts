@@ -10,7 +10,8 @@ export function analytics(data: PlatformSnapshot, from: string, to: string) {
     const energy = list.reduce((n, s) => n + s.energy, 0);
     const solar = list.reduce((n, s) => n + s.energy * s.solar / 100, 0);
     const exported = data.network.energyHistory.reduce((sum, p, i, history) => dhakaDay(p.timestamp) === date ? sum + Math.max(0, p.exportWh - (history[i - 1]?.exportWh ?? p.exportWh)) / 1000 : sum, 0);
-    points.push({ date, solar, demand: energy, grid: Math.max(0, energy - solar), exported,
+    const meterDelta = (key: "solarWh" | "gridWh" | "exportWh") => data.network.energyHistory.reduce((sum, p, i, history) => dhakaDay(p.timestamp) === date ? sum + Math.max(0, p[key] - (history[i - 1]?.[key] ?? p[key])) : sum, 0);
+    points.push({ date, solar, demand: energy, grid: Math.max(0, energy - solar), exported, generationWh: meterDelta("solarWh"), gridBackupWh: meterDelta("gridWh"), exportWh: meterDelta("exportWh"),
       revenue: payments.filter(p => dhakaDay(p.createdAt) === date).reduce((n, p) => n + (p.kind === "refund" ? -p.amount : p.amount), 0),
       sessions: list.length, duration: list.length ? list.reduce((n, s) => n + s.elapsed / 60, 0) / list.length : 0,
     });

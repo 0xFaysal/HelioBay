@@ -37,6 +37,7 @@ yarn-error.log*
 
 # local browser verification outputs
 /test-results/
+/api-test-results/
 /playwright-report/
 /artifacts/
 

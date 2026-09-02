@@ -9,7 +9,9 @@ export function locateSession(data: PlatformSnapshot, id: string) {
   return undefined;
 }
 export function audit(data: PlatformSnapshot, actorId: string, action: string, targetId: string, detail: string, now: number) {
-  data.network.audit.unshift({ id: `LOG-${now}-${data.network.audit.length}`, actorId, action, targetId, detail, createdAt: new Date(now).toISOString() });
+  let sequence = data.network.audit.length;
+  while (data.network.audit.some(entry => entry.id === `LOG-${now}-${sequence}`)) sequence++;
+  data.network.audit.unshift({ id: `LOG-${now}-${sequence}`, actorId, action, targetId, detail, createdAt: new Date(now).toISOString() });
   data.network.audit = data.network.audit.slice(0, 500);
 }
 export function addFault(data: PlatformSnapshot, device: Device, code: Fault["code"], message: string, now: number, severity: Fault["severity"] = "critical") {
@@ -76,6 +78,7 @@ export function issueCommand(data: PlatformSnapshot, actor: Account | null, devi
   if (!device) throw new Error("Device not found.");
   const found = sessionId ? locateSession(data, sessionId) : undefined;
   if (actor.role !== "admin" && (!found || found.ownerId !== actor.id || found.session.deviceId !== deviceId || ["RESTART", "TEST"].includes(command))) throw new Error("Administrator access is required for this command.");
+  if (found && found.session.deviceId !== deviceId) throw new Error("The selected session belongs to a different device.");
   if (command === "START") assertStart(data, actor, deviceId, sessionId, override);
   if (["STOP", "PAUSE", "EMERGENCY_STOP"].includes(command) && (!found || found.session.status === "completed")) throw new Error("No active session is selected.");
   if (command !== "EMERGENCY_STOP" && data.network.commands.some(c => c.deviceId === deviceId && c.status === "pending")) throw new Error("Wait for the current command acknowledgement or timeout.");
@@ -177,7 +180,8 @@ export function advanceEngine(input: PlatformSnapshot, now: number): PlatformSna
           s.energy += delta; s.energyWh = (s.energyWh ?? 0) + wh; s.elapsed += dt; s.power = power;
           s.battery = Math.min(s.targetBattery ?? 100, s.initialBattery + s.energy / vehicle.capacity * 100);
           vehicle.battery = s.battery; s.updatedAt = iso;
-          s.solar = useGrid ? 0 : Math.min(100, watts ? d.solarPower / watts * 100 : 100);
+          const solarFraction = useGrid ? 0 : Math.min(1, watts ? d.solarPower / watts : 1);
+          s.solar = s.energy > 0 ? ((s.energy - delta) * s.solar + delta * solarFraction * 100) / s.energy : 0;
           s.points = [...s.points, { minute: s.elapsed / 60, power }].slice(-60);
           d.stationBattery = Math.max(0, Math.min(100, d.stationBattery + (d.solarPower - watts) * dt / 3600 * 2));
           if (useGrid) n.gridWh += wh;

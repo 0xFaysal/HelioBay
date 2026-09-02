@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 import { CalendarDays, ArrowUpRight, CheckCircle2, Copy, Printer, Zap, MapPin } from "lucide-react";
 import { toast } from "sonner";
-import { useOwnerData } from "@/store/demo-store";
+import { useOwnerData, useDemoStore } from "@/store/demo-store";
 import { stationService } from "@/lib/services/stations";
 import { bookingService } from "@/lib/services/bookings";
 import { chargingService } from "@/lib/services/charging";
@@ -73,6 +73,7 @@ export function BookingDetail(
 ) {
   const d = useOwnerData();
   const router = useRouter();
+  const bays = useDemoStore(s => s.network.bays);
   const [cancel, setCancel] = useState(false);
 
   if (!d)
@@ -91,6 +92,7 @@ export function BookingDetail(
   const s = stationService.get(b.stationId);
   if (!s) return <div className="empty-state"><h1>Station details unavailable.</h1><p>Reconnect to load this booking’s station.</p></div>;
   const session = d.sessions.find(x => x.bookingId === b.id);
+  const deviceId = bays.find(bay => bay.stationId === b.stationId && bay.id === b.bayId)?.deviceId ?? s.deviceId;
   const refund = refundableAmount(b);
 
   async function start() {
@@ -132,7 +134,7 @@ export function BookingDetail(
           </p>
           {[
             ["Your reservation", dateTime(b.start)],
-            ["Bay & device", `${b.bayId} · ${s.deviceId}`],
+            ["Bay & device", `${b.bayId} · ${deviceId}`],
             ["Duration", `${b.duration} minutes`],
             ["Vehicle", d.vehicles.find(v => v.id === b.vehicleId)?.name ?? "Archived vehicle"],
             ["Estimated total", money(b.estimate)],
@@ -159,7 +161,7 @@ export function BookingDetail(
             <h2 className="text-xl mt-4">{b.status === "cancelled" ? "Booking cancelled" : "Your charging pass"}</h2>
             <p className="text-xs muted mt-2 mb-6">{b.status === "cancelled" ? "This pass is no longer valid." : "Keep this reference handy when you arrive."}</p>
             {b.status !== "cancelled" && <div className="bg-white p-5 inline-block border rounded-xl"><QRCode
-                value={`HELIOBAY-DEMO:${b.id}:${s.deviceId}:${b.bayId}`}
+                value={`HELIOBAY-DEMO:${b.id}:${deviceId}:${b.bayId}`}
                 size={175}
                 level="M"
                 title={`Demo booking ${b.id}`} /></div>}
