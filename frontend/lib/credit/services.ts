@@ -40,7 +40,7 @@ export const creditService = {
       if (!isDemo) return mutation(`/admin/stations/${encoded(parsed.id)}`, parsed, "PUT");
       return transaction(data => {
         const user = actor(data, who(), true); const existing = data.stations.find(s => s.id === parsed.id);
-        if (data.stations.some(s => s.deviceId === parsed.deviceId && s.id !== parsed.id)) throw new Error("A primary ESP32 can control only one station.");
+        if (data.stations.some(s => s.deviceId === parsed.deviceId && s.id !== parsed.id)) throw new Error("A primary Station Controller can control only one station.");
         if (existing && existing.deviceId !== parsed.deviceId) {
           if (data.sessions.some(s => s.stationId === parsed.id && s.state !== "completed") || data.commands.some(c => c.deviceId === existing.deviceId && c.status === "pending")) throw new Error("Stop all station sessions and resolve pending commands before assigning a device.");
           const d = data.devices.find(d => d.id === existing.deviceId)!; d.id = parsed.deviceId;
@@ -51,7 +51,7 @@ export const creditService = {
           data.bays.push({ id: `${parsed.id}-BAY01`, stationId: parsed.id, deviceId: parsed.deviceId, number: 1, relayChannel: 1, connector: "CCS2", enabled: true, plugged: false, fault: false });
         }
         if (!parsed.online) for (const s of data.sessions.filter(s => s.stationId === parsed.id)) finish(data, s.id, "DEVICE_OFFLINE", Date.now());
-        audit(data, user.id, "Station saved", parsed.id, "One primary ESP32; existing bays retain their channels", Date.now());
+        audit(data, user.id, "Station saved", parsed.id, "One primary Station Controller; existing bays retain their channels", Date.now());
       });
     },
   },
@@ -60,17 +60,17 @@ export const creditService = {
       const parsed = baySchema.parse(bay); if (!isDemo) return mutation(`/admin/bays/${encoded(parsed.id)}`, parsed, "PUT");
       return transaction(data => {
         const user = actor(data, who(), true); const station = data.stations.find(s => s.id === parsed.stationId);
-        if (!station || station.deviceId !== parsed.deviceId) throw new Error("Bays must use the station’s primary ESP32.");
-        if (data.bays.some(b => b.id !== parsed.id && b.stationId === parsed.stationId && (b.relayChannel === parsed.relayChannel || b.number === parsed.number))) throw new Error("Bay numbers and relay channels must be unique within a station.");
+        if (!station || station.deviceId !== parsed.deviceId) throw new Error("Bays must use the station’s primary Station Controller.");
+        if (data.bays.some(b => b.id !== parsed.id && b.stationId === parsed.stationId && (b.relayChannel === parsed.relayChannel || b.number === parsed.number))) throw new Error("Bay numbers and bay assignments must be unique within a station.");
         const existing = data.bays.find(b => b.id === parsed.id);
-        if (existing && (existing.relayChannel !== parsed.relayChannel || existing.connector !== parsed.connector) && data.sessions.some(s => s.bayId === parsed.id && s.state !== "completed")) throw new Error("Stop charging before changing the relay or connector.");
+        if (existing && (existing.relayChannel !== parsed.relayChannel || existing.connector !== parsed.connector) && data.sessions.some(s => s.bayId === parsed.id && s.state !== "completed")) throw new Error("Stop charging before changing the bay assignment or connector.");
         if (existing) Object.assign(existing, parsed); else data.bays.push(parsed);
         if (!parsed.enabled || parsed.fault) for (const s of data.sessions.filter(s => s.bayId === parsed.id)) finish(data, s.id, "FAULT", Date.now());
-        audit(data, user.id, "Bay configured", parsed.id, `Relay ${parsed.relayChannel}; ${parsed.connector}`, Date.now());
+        audit(data, user.id, "Bay configured", parsed.id, `Assignment ${parsed.relayChannel}; ${parsed.connector}`, Date.now());
       });
     },
     async plug(bayId: string, plugged: boolean) {
-      if (!isDemo) throw new Error("Plug presence is supplied by ESP32 telemetry in API mode.");
+      if (!isDemo) throw new Error("Plug presence is supplied by Station Controller telemetry in API mode.");
       return transaction(data => { const user = actor(data, who()); const bay = data.bays.find(b => b.id === bayId); if (!bay) throw new Error("Bay not found."); const active = data.sessions.find(s => s.bayId === bayId && s.state !== "completed"); if (active && active.ownerId !== user.id && user.role !== "admin") throw new Error("This bay belongs to another active user."); bay.plugged = plugged; if (!plugged && active) finish(data, active.id, "PLUG_DISCONNECTED", Date.now()); audit(data, user.id, plugged ? "Demo plug connected" : "Demo plug removed", bayId, "Explicit physical-input simulation", Date.now()); });
     },
   },

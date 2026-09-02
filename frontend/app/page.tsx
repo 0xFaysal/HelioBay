@@ -205,7 +205,7 @@ export default function HomePage() {
           <Reveal><div className="phone-preview">
               <div className="phone-notch" />
               <div className="flex justify-between text-[10px]">
-                <strong>heliobay</strong>
+                <strong>HelioBay</strong>
                 <span className="status-dot mt-1" />
               </div>
               <p className="text-[10px] muted mt-6">A little charge. A lot of possibility.</p>

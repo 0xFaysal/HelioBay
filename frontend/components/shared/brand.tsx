@@ -8,5 +8,5 @@ export function Brand(
     light?: boolean;
   }
 ) {
-  return <Link href="/" aria-label="HelioBay home" className={`brand ${light ? "text-white" : ""}`}><span className="brand-mark"><Zap size={29} strokeWidth={2.7} fill="currentColor" /></span>helio<span className="font-normal -ml-2">bay</span></Link>;
+  return <Link href="/" aria-label="HelioBay home" className={`brand ${light ? "text-white" : ""}`}><span className="brand-mark"><Zap size={29} strokeWidth={2.7} fill="currentColor" /></span><span>HelioBay</span></Link>;
 }

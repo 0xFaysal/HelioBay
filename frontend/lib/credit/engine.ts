@@ -43,7 +43,7 @@ export function startSession(data: Snapshot, who: Actor | null, input: StartInpu
   const iso = new Date(now).toISOString(); const commandId = `CMD-${input.requestId}`;
   const session = { id, ownerId, stationId: station.id, bayId: bay.id, deviceId: device.id, vehicleId: vehicle.id, state: "pending" as const, createdAt: iso, updatedAt: iso, initialBattery: vehicle.battery, battery: vehicle.battery, targetBattery: data.policy.targetBattery, energyMWh: 0, elapsedMs: 0, tariffMinor: station.priceMinor, startingBalanceMinor: walletView(data, ownerId).balanceMinor, reservedMinor: available, costMinor: 0, commandId, points: [], events: [{ at: iso, message: "START requested; credits reserved. Waiting for device acknowledgement." }] };
   data.sessions.unshift(session);
-  data.commands.unshift({ id: commandId, sessionId: id, deviceId: device.id, bayId: bay.id, command: "START", status: "pending", outcome: device.outcome, issuedAt: iso, expiresAt: new Date(now + 6000).toISOString(), actorId: who!.id, message: "Awaiting ESP32 acknowledgement." });
+  data.commands.unshift({ id: commandId, sessionId: id, deviceId: device.id, bayId: bay.id, command: "START", status: "pending", outcome: device.outcome, issuedAt: iso, expiresAt: new Date(now + 6000).toISOString(), actorId: who!.id, message: "Awaiting Station Controller acknowledgement." });
   audit(data, who!.id, "START requested", id, "Direct bay charging with wallet hold", now);
   return session;
 }
@@ -69,7 +69,7 @@ export function sendCommand(data: Snapshot, who: Actor | null, deviceId: string,
   if (command !== "EMERGENCY_STOP" && data.commands.some(c => c.deviceId === deviceId && c.sessionId === sessionId && c.status === "pending")) throw new Error("Wait for acknowledgement or timeout before retrying.");
   const stopReason = command === "EMERGENCY_STOP" ? "EMERGENCY_STOP" : user.role === "admin" ? "ADMIN_STOPPED" : "USER_STOPPED";
   if (command === "EMERGENCY_STOP" && s) { finish(data, s.id, stopReason, now); const bay = data.bays.find(b => b.id === s.bayId)!; bay.fault = true; data.faults.unshift({ id: `FAULT-${id}`, stationId: s.stationId, deviceId, bayId: bay.id, severity: "critical", status: "open", message: "Emergency stop latched", note: "", at: new Date(now).toISOString() }); }
-  const result: Command = { id, sessionId, deviceId, bayId: s?.bayId, command, status: "pending", outcome: device.outcome, issuedAt: new Date(now).toISOString(), expiresAt: new Date(now + 6000).toISOString(), actorId: user.id, message: "Awaiting ESP32 acknowledgement.", stopReason };
+  const result: Command = { id, sessionId, deviceId, bayId: s?.bayId, command, status: "pending", outcome: device.outcome, issuedAt: new Date(now).toISOString(), expiresAt: new Date(now + 6000).toISOString(), actorId: user.id, message: "Awaiting Station Controller acknowledgement.", stopReason };
   data.commands.unshift(result); audit(data, user.id, `${command} requested`, deviceId, sessionId ?? "Device check", now); return result;
 }
 export function createPayment(data: Snapshot, who: Actor | null, amountMinor: number, requestId: string, now: number): Payment {
@@ -103,9 +103,9 @@ export function advance(input: Snapshot, now: number): Snapshot {
     }
     if (c.status !== "acknowledged" && c.command === "START" && s) finish(data, s.id, c.status === "timed-out" ? "DEVICE_OFFLINE" : "FAULT", now);
     if (c.status === "acknowledged" && c.command === "STOP" && s) finish(data, s.id, c.stopReason ?? "USER_STOPPED", now);
-    if (!c.message.startsWith("Connect") && c.status === "acknowledged") c.message = `${c.command} acknowledged by simulated ESP32.`;
+    if (!c.message.startsWith("Connect") && c.status === "acknowledged") c.message = `${c.command} acknowledged by simulated Station Controller.`;
     else if (c.status === "timed-out") c.message = "Device acknowledgement timed out. Inspect connection and retry.";
-    else if (c.status === "failed" && c.message === "Awaiting ESP32 acknowledgement.") c.message = "Device rejected the command. Inspect and retry.";
+    else if (c.status === "failed" && c.message === "Awaiting Station Controller acknowledgement.") c.message = "Device rejected the command. Inspect and retry.";
     s?.events.push({ at: iso, message: c.message }); audit(data, "engine", `Command ${c.status}`, c.id, c.message, now);
   }
   for (const s of data.sessions.filter(s => s.state !== "completed")) {
