@@ -11,7 +11,7 @@ import {
 
 import { firebaseAuth, firebaseConfigured, demoEnabled } from "@/lib/firebase/client";
 import { demoAccounts } from "@/lib/demo/seed";
-import { useDemoStore } from "@/store/demo-store";
+import { useCreditStore as useDemoStore } from "@/store/credit-store";
 import type { Role } from "@/types";
 
 export const authService = {

@@ -1,2 +1,2 @@
-import { AdminSettings } from '@/components/admin/settings';
-export default function Page() { return <AdminSettings />; }
+import { AdminSettings } from "@/components/credit/admin-overview";
+export default function Page() { return <AdminSettings/>; }

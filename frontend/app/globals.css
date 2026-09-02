@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./admin.css";
+@import "./credit.css";
 /* HelioBay network operations, extending the owner design system. */
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";

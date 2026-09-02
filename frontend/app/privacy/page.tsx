@@ -13,15 +13,15 @@ export default function Page() {
           <p>This notice describes the HelioBay demonstration frontend, not a deployed commercial charging service.</p>
           <section>
             <h2 className="text-xl text-foreground mb-2">Browser-local demo data</h2>
-            <p>Demo names, vehicle details, reservations, simulated payments, and preferences are stored in this browser. They persist across refreshes but are not synchronized across devices. Use fictional details. Clearing the site’s browser storage removes this data.</p>
+            <p>Demo names, vehicle details, wallet entries, simulated payments, and preferences are stored in this browser. They persist across refreshes but are not synchronized across devices. Use fictional details. Clearing the site’s browser storage removes this data.</p>
           </section>
           <section>
             <h2 className="text-xl text-foreground mb-2">Authentication</h2>
-            <p>When Firebase is configured, email/password and Google sign-in are processed by Firebase Authentication. Passwords are not stored in the demo store. A Firebase login does not turn simulated bookings into real reservations.</p>
+            <p>When Firebase is configured, email/password and Google sign-in are processed by Firebase Authentication. Passwords are not stored in the demo store. Firebase ID tokens authorize backend requests in API Mode. Demo login is available only in explicit Demo Mode.</p>
           </section>
           <section>
             <h2 className="text-xl text-foreground mb-2">Location and external services</h2>
-            <p>Location is requested only after you choose “Near me” and is held in memory to calculate distances. The map loads tiles from OpenStreetMap. Directions open Google Maps in a new tab. Those services receive their normal browser requests.</p>
+            <p>Location is requested only after you choose “Use my location” and is held in memory to calculate demo distances. In API Mode, coordinates are sent to the configured backend to find nearest stations. The map loads tiles from OpenStreetMap. Directions open Google Maps in a new tab. Those services receive their normal browser requests.</p>
           </section>
           <section>
             <h2 className="text-xl text-foreground mb-2">Before production</h2>

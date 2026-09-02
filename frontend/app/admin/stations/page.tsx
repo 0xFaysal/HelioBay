@@ -1,2 +1,2 @@
-import { AdminStations } from '@/components/admin/stations';
-export default function Page() { return <AdminStations />; }
+import { AdminStations } from "@/components/credit/admin-stations";
+export default function Page() { return <AdminStations/>; }

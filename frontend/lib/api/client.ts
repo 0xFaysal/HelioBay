@@ -35,7 +35,16 @@ export function createApiClient({ baseUrl, token, unauthorized, fetcher = fetch,
         });
         if (response.status === 401) { unauthorized(); throw new ApiError("Your session expired. Please sign in again.", 401, "UNAUTHORIZED"); }
         const json: unknown = response.status === 204 ? null : await response.json().catch(() => { throw new ApiError("Backend returned invalid JSON.", response.status, "INVALID_RESPONSE"); });
-        if (!response.ok) throw new ApiError(response.status === 403 ? "Administrator authorization is required." : `Backend request failed (${response.status}). Please retry.`, response.status, "HTTP_ERROR");
+        if (!response.ok) {
+          const messages: Record<number,string> = {
+            403: "This account is not allowed to perform that action. Check your role or account status.",
+            409: "The bay, session or wallet changed. Refresh its status before trying again.",
+            422: "The request was not accepted. Check the amount, vehicle and bay details.",
+            429: "Too many requests. Wait a moment before trying again.",
+            500: "The backend could not complete this request. Your browser has not assumed success.",
+          };
+          throw new ApiError(messages[response.status] ?? `Backend request failed (${response.status}). Please retry.`, response.status, "HTTP_ERROR");
+        }
         const parsed = schema.safeParse(json);
         if (!parsed.success) throw new ApiError("Backend data failed validation. No unverified values were applied.", response.status, "INVALID_RESPONSE");
         return parsed.data;

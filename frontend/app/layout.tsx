@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     template: "%s | HelioBay"
   },
 
-  description: "Discover solar-powered EV charging, reserve your bay, and take the cleaner road with HelioBay. Interactive network prototype.",
+  description: "Discover solar-powered EV charging, find your bay and charge with prepaid Credits, and take the cleaner road with HelioBay. Interactive network prototype.",
 
   openGraph: {
     title: "HelioBay — Smart Solar EV Charging",

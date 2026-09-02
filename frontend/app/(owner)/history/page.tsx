@@ -1,9 +1,2 @@
-import { History } from "@/components/owner/history";
-
-export const metadata = {
-  title: "Charging history"
-};
-
-export default function Page() {
-  return <History />;
-}
+import { History } from "@/components/credit/owner";
+export default function Page() { return <History />; }

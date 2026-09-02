@@ -14,7 +14,10 @@ const who = () => useCreditStore.getState().account;
 const snapshot = () => useCreditStore.getState().data;
 const encoded = encodeURIComponent;
 async function mutation(path: string, body: unknown, method = "POST", key = crypto.randomUUID()) {
-  const data = await request(path, snapshotSchema, { method, body, idempotencyKey: key }); useCreditStore.setState({ data }); return data;
+  const identity = who()?.id;
+  const data = await request(path, snapshotSchema, { method, body, idempotencyKey: key });
+  if (who()?.id !== identity) throw new Error("The signed-in account changed. Refresh before continuing.");
+  useCreditStore.setState({ data }); return data;
 }
 export const creditService = {
   async refresh(signal?: AbortSignal) {

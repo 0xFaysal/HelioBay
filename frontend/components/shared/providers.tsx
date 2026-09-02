@@ -3,9 +3,9 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { MotionConfig } from "motion/react";
 import { Toaster, toast } from "sonner";
-import { useDemoStore, hydrateDemoStore } from "@/store/demo-store";
+import { useCreditStore as useDemoStore, hydrateCredits as hydrateDemoStore } from "@/store/credit-store";
 import { demoEnabled, firebaseAuth, firebaseConfigured } from "@/lib/firebase/client";
-import { PlatformRuntime } from "./platform-runtime";
+import { PlatformRuntime } from "@/components/credit/runtime";
 import type { Account } from "@/types";
 
 const AuthContext = createContext<{ user: Account | null; loading: boolean }>({ user: null, loading: true });
@@ -13,11 +13,11 @@ export const useAuth = () => useContext(AuthContext);
 export function Providers({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<Account | null>(null);
   const [authReady, setAuthReady] = useState(!firebaseConfigured);
-  const hydrated = useDemoStore(s => s.hydrated);
-  const demoAccount = useDemoStore(s => s.demoAccount);
+  const hydrated = useDemoStore(s => s.ready);
+  const demoAccount = useDemoStore(s => s.account?.demo ? s.account : null);
   useEffect(() => {
     void hydrateDemoStore().catch(() => {
-      useDemoStore.getState().setHydrated();
+      useDemoStore.setState({ ready: true });
       toast.error("Browser storage is unavailable. Changes may not survive refresh.");
     });
   }, []);
@@ -30,6 +30,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       const account: Account | null = u ? { id: u.uid, name: u.displayName || "EV Owner", email: u.email || "", role: result?.claims.role === "admin" ? "admin" : "owner", demo: false } : null;
       setFirebaseUser(account); setAuthReady(true);
       if (account) useDemoStore.getState().setAccount(account);
+      else if (!useDemoStore.getState().account?.demo) useDemoStore.getState().setAccount(null);
     }, () => { setAuthReady(true); toast.error("Unable to restore sign-in. Please sign in again."); });
     return () => { disposed = true; unsubscribe(); };
   }, [hydrated]);

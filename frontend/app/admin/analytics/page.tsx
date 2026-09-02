@@ -1,2 +1,2 @@
-import { AdminAnalytics } from '@/components/admin/analytics';
-export default function Page() { return <AdminAnalytics />; }
+import { AdminAnalytics } from "@/components/credit/admin-overview";
+export default function Page() { return <AdminAnalytics/>; }

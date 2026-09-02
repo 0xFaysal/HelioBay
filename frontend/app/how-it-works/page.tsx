@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, CalendarCheck, PlugZap, ArrowUpRight } from "lucide-react";
+import { MapPin, Wallet, PlugZap, ArrowUpRight } from "lucide-react";
 import { PublicShell, FinalCTA } from "@/components/shared/public-shell";
 import { AssetImage } from "@/components/shared/asset-image";
 import { Reveal } from "@/components/shared/reveal";
@@ -28,17 +28,17 @@ export default function Page() {
             icon: MapPin,
             n: "01",
             title: "Find your kind of station.",
-            text: "Explore nearby stations on a map or in a list. Filter by connector, solar mix, availability, and price to find a spot that fits."
+            text: "Explore nearby stations on a map or in a list. Sort by distance, price, available bays or renewable contribution to find a spot that fits."
           }, {
-            icon: CalendarCheck,
+            icon: Wallet,
             n: "02",
-            title: "A time that’s yours.",
-            text: "Pick a future slot, select your vehicle, and review the estimate. A small advance secures your bay. Your QR pass is ready instantly."
+            title: "Add Credits. Arrive. Connect.",
+            text: "Top up your wallet from 10 Credits. Travel to an available station, connect the charging plug, then select your vehicle, station and bay."
           }, {
             icon: PlugZap,
             n: "03",
             title: "Plug in. Breathe out.",
-            text: "Start your demo session, watch the energy flow, and pause or finish when you’re ready. Your final receipt keeps every detail clear."
+            text: "Press Start Charging after plug detection. The charger must acknowledge before energy flows. Follow credit usage live; charging stops at full battery, your credit limit, or when you stop."
           }].map(s => <Reveal className="step-card" key={s.n}>
             <div className="flex justify-between">
               <s.icon size={25} />

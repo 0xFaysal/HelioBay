@@ -1,2 +1,2 @@
-import { AdminStations } from '@/components/admin/stations';
-export default async function Page({ params }: { params: Promise<{stationId:string}> }) { return <AdminStations stationId={(await params).stationId} />; }
+import { AdminStations } from "@/components/credit/admin-stations";
+export default async function Page({params}:{params:Promise<{stationId:string}>}) { const {stationId}=await params; return <AdminStations id={stationId}/>; }

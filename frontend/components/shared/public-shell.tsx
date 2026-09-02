@@ -68,14 +68,14 @@ export function PublicFooter() {
         <div>
           <h4>Your HelioBay</h4>
           <Link href="/dashboard">Owner dashboard</Link>
-          <Link href="/bookings">My bookings</Link>
+          <Link href="/wallet">Credit wallet</Link>
           <Link href="/vehicles">My vehicles</Link>
           <Link href="/auth/sign-in?role=admin">Station partner sign in</Link>
         </div>
         <div>
           <h4>Good to know</h4>
           <Link href="/how-it-works#faq">Help & FAQs</Link>
-          <Link href="/pricing#policy">Cancellation policy</Link>
+          <Link href="/pricing#policy">Credit policy</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms of use</Link>
         </div>

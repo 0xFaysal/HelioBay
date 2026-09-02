@@ -1,9 +1,2 @@
-import { Dashboard } from "@/components/owner/dashboard";
-
-export const metadata = {
-  title: "Your dashboard"
-};
-
-export default function Page() {
-  return <Dashboard />;
-}
+import { Dashboard } from "@/components/credit/owner";
+export default function Page() { return <Dashboard />; }

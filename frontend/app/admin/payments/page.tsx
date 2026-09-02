@@ -1,2 +1,2 @@
-import { AdminPayments } from '@/components/admin/operations';
-export default function Page() { return <AdminPayments />; }
+import { AdminPayments } from "@/components/credit/admin-operations";
+export default function Page() { return <AdminPayments/>; }

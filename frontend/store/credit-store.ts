@@ -11,7 +11,7 @@ const identity = create<{ account: Account | null }>()(persist(() => ({ account:
 interface State { data: Snapshot; account: Account | null; ready: boolean; loading: boolean; error: string; connection: string; setAccount: (account: Account | null) => void }
 export const useCreditStore = create<State>()(persist(set => ({
   data: seed("1970-01-01T00:00:00.000Z", !isDemo), account: null, ready: false, loading: false, error: "", connection: isDemo ? "DEMO MODE" : "Connecting",
-  setAccount: account => { identity.setState({ account: isDemo && account?.demo ? account : null }); set({ account, error: "" }); },
+  setAccount: account => { identity.setState({ account: isDemo && account?.demo ? account : null }); set(state => ({ account, error: "", ...(!isDemo && state.account?.id !== account?.id ? {data: seed("1970-01-01T00:00:00.000Z",true), connection: "Connecting"} : {}) })); },
 }), {
   name: "heliobay-credit-v3", version: 3, skipHydration: true, storage: createJSONStorage(() => localStorage),
   partialize: s => ({ data: isDemo ? s.data : seed("1970-01-01T00:00:00.000Z", true) }),

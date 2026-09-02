@@ -1,9 +1,2 @@
-import { Vehicles } from "@/components/owner/vehicles";
-
-export const metadata = {
-  title: "My vehicles"
-};
-
-export default function Page() {
-  return <Vehicles />;
-}
+import { Vehicles } from "@/components/credit/owner";
+export default function Page() { return <Vehicles />; }

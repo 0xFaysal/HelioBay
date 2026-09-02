@@ -11,7 +11,7 @@ const config = {
 };
 
 export const firebaseConfigured = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
-export const demoEnabled = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+export const demoEnabled = process.env.NEXT_PUBLIC_APP_MODE === "demo";
 
 export function firebaseAuth() {
   if (!firebaseConfigured)

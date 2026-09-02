@@ -6,7 +6,7 @@ import { resolveMode } from "../lib/config.ts";
 import { telemetrySchema, acknowledgementSchema } from "../lib/platform/schemas.ts";
 const schema = z.object({ value: z.number() });
 test("demo fallback is opt-in; API mode never falls back", () => {
-  assert.equal(resolveMode(undefined, undefined), "api"); assert.equal(resolveMode("api", "true"), "api"); assert.equal(resolveMode("demo", "false"), "api"); assert.equal(resolveMode("demo", "true"), "demo");
+  assert.equal(resolveMode(undefined, undefined), "api"); assert.equal(resolveMode("api", "true"), "api"); assert.equal(resolveMode("demo", "false"), "demo"); assert.equal(resolveMode(undefined, "true"), "api"); assert.equal(resolveMode("demo", "true"), "demo");
 });
 test("missing API configuration fails honestly", async () => {
   const client = createApiClient({ baseUrl: "", token: async () => null, unauthorized() {} });
@@ -19,7 +19,7 @@ test("auth token attached; safe GET can retry but POST cannot", async () => {
     if (calls === 1) throw new Error("offline"); return new Response(JSON.stringify({ value: 4 }));
   } });
   assert.equal((await client("/stations", schema)).value, 4); assert.equal(calls, 2);
-  calls = 0; await assert.rejects(client("/bookings", schema, { method: "POST", body: {} })); assert.equal(calls, 1);
+  calls = 0; await assert.rejects(client("/wallet/top-ups", schema, { method: "POST", body: {} })); assert.equal(calls, 1);
 });
 test("401 invokes unauthorized handling and invalid JSON/data are rejected", async () => {
   let expired = false;
@@ -31,7 +31,7 @@ test("AbortSignal cancels without retry and timeout is bounded", async () => {
   let calls = 0;
   const client = createApiClient({ baseUrl: "https://backend.example", token: async () => null, unauthorized() {}, timeoutMs: 5, fetcher: (_url, options) => new Promise((_resolve, reject) => { calls++; options!.signal!.addEventListener("abort", () => reject(new Error("aborted"))); }) });
   const controller = new AbortController(); controller.abort(); await assert.rejects(client("/stations", schema, { signal: controller.signal })); assert.equal(calls, 0);
-  await assert.rejects(client("/bookings", schema, { method: "POST" }), (e: unknown) => e instanceof ApiError && e.code === "TIMEOUT"); assert.equal(calls, 1);
+  await assert.rejects(client("/wallet/top-ups", schema, { method: "POST" }), (e: unknown) => e instanceof ApiError && e.code === "TIMEOUT"); assert.equal(calls, 1);
 });
 test("external telemetry and acknowledgements reject corrupt values", () => {
   assert.equal(telemetrySchema.safeParse({ deviceId: "ST001", carBatteryPercent: 150 }).success, false);

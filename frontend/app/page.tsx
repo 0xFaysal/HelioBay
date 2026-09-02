@@ -6,7 +6,7 @@ import {
   MapPin,
   Sun,
   Zap,
-  CalendarCheck,
+  PlugZap,
   ChartNoAxesCombined,
   CreditCard,
   Leaf,
@@ -65,11 +65,11 @@ export default function HomePage() {
       <div className="container-wide stats-strip">
         <div>
           <div className="eyebrow !text-[9px]">THE NETWORK, AT A GLANCE</div>
-          <small>Live demo network</small>
+          <small>Illustrative network preview</small>
         </div>
         {[
           ["05", "Connected stations"],
-          ["19", "Charging bays"],
+          ["17", "Charging bays"],
           ["83%", "Avg. solar energy"],
           ["24/7", "Always connected"]
         ].map(([value, label]) => <div key={label}>
@@ -94,11 +94,11 @@ export default function HomePage() {
             href: "/stations",
             link: "Explore the network"
           }, {
-            icon: CalendarCheck,
-            title: "Make it yours.",
-            text: "Choose your time, reserve your bay, and leave the waiting behind. Your spot is ready when you are.",
+            icon: PlugZap,
+            title: "Connect at your bay.",
+            text: "Add Credits, arrive at your station, and connect the plug. Select your bay and start once your car is detected.",
             href: "/stations",
-            link: "Book a charging bay"
+            link: "Connect and Start"
           }, {
             icon: Zap,
             title: "Recharge. Reconnect.",
@@ -145,9 +145,9 @@ export default function HomePage() {
               </div>
             </Reveal>
             <Reveal className="feature-list">{[{
-                icon: CalendarCheck,
+                icon: PlugZap,
                 title: "Your time, respected.",
-                text: "Smart reservations and live bay availability mean less waiting and more of your day back."
+                text: "Nearest-station discovery and clear bay availability help you find your next charge. Plug in when you arrive."
               }, {
                 icon: ChartNoAxesCombined,
                 title: "Every watt, understood.",
@@ -155,7 +155,7 @@ export default function HomePage() {
               }, {
                 icon: CreditCard,
                 title: "Nothing hidden. Ever.",
-                text: "Upfront pricing, automated billing, and easy-to-find receipts. A clear view of every charge."
+                text: "Prepaid Credits, a live view of your spend, and easy-to-find receipts. Your credit limit stays in control."
               }].map(item => <div className="feature-row" key={item.title}>
                 <item.icon size={24} className="shrink-0 mt-1" strokeWidth={1.5} />
                 <div>
@@ -198,7 +198,7 @@ export default function HomePage() {
           <Reveal>
             <div className="eyebrow">YOUR CHARGE. IN YOUR HANDS.</div>
             <h2 className="editorial-heading">Stay connected.<br />Even while you unplug.</h2>
-            <p className="text-sm text-muted-foreground max-w-[390px] my-6">A clear view of your energy, wherever the day takes you. Your bookings, live charge, and next adventure — all in one place.</p>
+            <p className="text-sm text-muted-foreground max-w-[390px] my-6">A clear view of your energy, wherever the day takes you. Your wallet, live charge, and next adventure — all in one place.</p>
             <Link href="/dashboard" className="action action-dark">Explore your dashboard <ArrowUpRight size={15} /></Link>
             <p className="text-[10px] text-muted-foreground mt-4">Works beautifully on your phone. No app download needed.</p>
           </Reveal>
@@ -220,10 +220,10 @@ export default function HomePage() {
                 <p className="text-[9px] muted">Ready for whatever comes next.</p>
               </div>
               <div className="bg-[#153c29] text-white rounded-xl p-4 mt-3">
-                <span className="text-[9px] text-[#9ed3ad]">YOUR NEXT STOP</span>
+                <span className="text-[9px] text-[#9ed3ad]">YOUR CREDIT WALLET</span>
                 <h4 className="text-xs mt-3">HelioBay Green Point</h4>
-                <div className="text-[9px] mt-2 text-[#c8d8ce]">Tomorrow · 10:00 AM · Bay 01</div>
-                <div className="text-[9px] flex justify-between mt-4 border-t border-white/20 pt-3">Everything is ready <ChevronRight size={12} /></div>
+                <div className="text-[9px] mt-2 text-[#c8d8ce]">500.00 Credits · 1 BDT = 1 Credit</div>
+                <div className="text-[9px] flex justify-between mt-4 border-t border-white/20 pt-3">Add Credits. Stay in control. <ChevronRight size={12} /></div>
               </div>
               <div className="text-[8px] muted text-center mt-5">Dashboard preview · Sample account</div>
             </div></Reveal>

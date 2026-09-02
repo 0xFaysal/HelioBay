@@ -1,9 +1,2 @@
-import { Profile } from "@/components/owner/profile";
-
-export const metadata = {
-  title: "Profile & settings"
-};
-
-export default function Page() {
-  return <Profile />;
-}
+import { Profile } from "@/components/credit/owner";
+export default function Page() { return <Profile />; }
