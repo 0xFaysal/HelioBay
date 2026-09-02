@@ -1,0 +1,3 @@
+import { Sun, BatteryMedium, CarFront, UtilityPole } from "lucide-react";
+import { Fragment } from "react";
+export function EnergyFlow() { const nodes = [[Sun, "Solar"], [BatteryMedium, "Storage"], [CarFront, "Your EV"], [UtilityPole, "Grid"]] as const; return <div className="energy-flow" aria-label="Energy flows from solar to storage, your EV, and the grid">{nodes.map(([Icon, label], i) => <Fragment key={label}>{i > 0 && <div className="energy-line" aria-hidden="true" />}<div className="energy-node"><div><Icon size={25} strokeWidth={1.5} /></div><span>{label}</span></div></Fragment>)}</div>; }
