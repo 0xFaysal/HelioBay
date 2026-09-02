@@ -20,7 +20,9 @@ See [frontend setup and verification](frontend/README.md) for routes, mode/Fireb
 ## Repository contents
 
 - `frontend/`: existing Next.js application, generated local assets, owner/Admin features, simulator, API adapters, tests and documentation.
-- `backend/`: original backend dependency setup; no operational API is implemented by the frontend.
+- `backend/`: backend workspace; this frontend milestone does not modify or validate its implementation.
 - `output/imagegen/`: original concept imagery and prompts; optimized copies are in `frontend/public/images/`.
 
-Environment files, dependencies, build output and browser-test artifacts are excluded from Git. No MQTT credentials or payment secrets belong in the frontend.
+Environment files, dependencies, build output and browser-test artifacts are excluded from Git. No controller credentials or payment secrets belong in the frontend.
+
+The current refactor adds automatic solar/storage/grid dispatch, admin energy monitoring and history, a stable-viewport station map, and shared printable charging/top-up receipts. Telemetry is labelled contextually; there is no global demo banner.

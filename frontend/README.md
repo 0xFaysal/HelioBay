@@ -27,7 +27,7 @@ Demo authentication exists **only** when APP_MODE is exactly `demo`. Missing/inv
 | `npm start` | Serve production build |
 | `npm run lint` | ESLint and React checks |
 | `npm run typecheck` | Next route types and TypeScript |
-| `npm test` | Integer wallet, charging safety and API-client tests |
+| `npm test` | Wallet, charging, energy dispatch, receipts and API-client tests |
 | `npm run test:e2e` | Browser tests against a running server |
 
 No packages were added or upgraded for this refactor. No formatter is configured. On the development workstation, the existing broken global npm shim can be bypassed with `node "C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js" run dev`.
@@ -35,17 +35,17 @@ No packages were added or upgraded for this refactor. No formatter is configured
 ## Walk through the product
 
 1. Sign in as Demo Owner. Alex Morgan has one EV and **500.00 Credits** of explicitly labelled demo seed credit.
-2. On Dashboard or Stations, choose **Use my location**. Denied, unavailable and timeout results have a manual area/landmark fallback. Demo distances use Haversine; API mode requests nearest stations from the backend.
+2. In Stations, choose **Use my location** in the map toolbar. Denied, unavailable and timeout results offer station/area search instead. Haversine distances use actual browser coordinates in either mode. Search never invents a location. Coordinates and accuracy remain in memory for this visit only.
 3. Inspect a station, get directions, then open **Connect and Start**. Select a vehicle, station and bay number.
-4. Use the explicitly labelled **Simulate plug connect** action. In API mode the ESP32 supplies this signal; the control is absent.
+4. Use the explicitly labelled **Simulate plug connect** action. In API mode the Station Controller supplies this signal; the control is absent.
 5. Press **Start Charging**. The service validates account, credit, controller, bay, connector, plug and concurrent-session conditions. Credit is held before START; no energy is delivered until acknowledgement.
-6. View voltage, current, power, delivered energy, estimated battery/time, running cost, remaining held credit and the event timeline.
+6. View charging power, delivered energy, estimated battery/time, running cost, remaining held credit and a plain-language event timeline. Owners are not shown controller internals or source switching.
 7. Stop normally, disconnect, exhaust credit, fill the battery, or inject a device/fault condition from Admin. The final receipt freezes energy/cost, gives the exact reason and posts a single charging debit.
 8. In Wallet → Add Credits, try presets or enter a custom amount. Minimum is **10.00 Credits**; the configured default maximum is **5000.00**.
 9. Review BDT and Credits, then continue to the Sandbox. Demo mode redirects to a clearly labelled **local gateway simulator**, not a fake SSLCOMMERZ page.
 10. Try successful, pending, failed and cancelled outcomes. Success first verifies the payment. Only verification adds credit, and repeated callbacks never double-credit.
 11. Open Demo Admin in another tab. Block/reactivate the owner, inspect the full ledger and post a credit adjustment or reversal with a meaningful reason. Held funds cannot be silently removed.
-12. Manage stations and bays; each station has **one primary ESP32**, with unique relay/channel assignments per bay. Try START failure/timeout, full battery, unplug, offline, faults, Admin Stop and 1×/10×/60× speed.
+12. Manage stations and bays; each station has **one Station Controller**, coordinating solar, storage, a bidirectional grid connection and multiple charging bays. Try START failure/timeout, full battery, unplug, offline, faults, Admin Stop and 1×/10×/60× speed.
 13. Explore searchable/exportable histories, printable receipts, vehicle CRUD/default selection, profile details and notification preferences.
 
 ## Wallet accounting
@@ -115,13 +115,16 @@ Use APP_MODE=api with Firebase and both backend URLs for integration. Rebuild af
 | `lib/credit/services.ts` | Users, wallet/payments, stations, bays, devices, charging and Admin contracts; demo/API adapters |
 | `store/credit-store.ts` | Validated, hydration-safe cache and demo persistence |
 | `components/credit/runtime.tsx` | One shared demo loop or authenticated backend realtime lifecycle |
-| `components/credit/` | Active owner/Admin/station/payment interfaces |
+| `components/credit/` | Active owner/Admin/station/payment interfaces and shared receipts |
+| `lib/energy/` | Typed telemetry, pure dispatch, interval metering and history aggregation |
+| `components/energy/` | Responsive energy flow, monitoring, history, charts and energy policy |
+| `lib/credit/receipts.ts` | Receipt presentation models from recorded session/payment/ledger data |
 | `components/shared/providers.tsx` | Firebase auth and reduced-motion provider |
 | `lib/api/client.ts` | Bearer auth, error mapping, cancellation, timeout and safe GET retry |
 
 See [the current backend contract](docs/API-CONTRACT.md) for payloads, units, gateway callbacks and authoritative safety requirements.
 
-**Website → backend → MQTT → ESP32**. The browser never talks to ESP32/MQTT directly. API errors do not activate the demo adapter. Data is schema-validated before applying; account changes clear API cache. WebSocket authentication is sent in its first message. Unsupported/corrupt payloads are rejected; stale data is visibly marked. A timed-out command means delivery unknown, not “charger stopped.”
+**Website → backend → Station Controller**. The browser never talks directly to charging hardware. Stable `deviceId`, `devices` and `relayChannel` API fields remain for compatibility but are not exposed as hardware architecture. API errors do not activate the demo adapter. Data is schema-validated before applying; account changes clear API cache. WebSocket authentication is sent in its first message. Unsupported/corrupt payloads are rejected; stale data is visibly marked. A timed-out command means delivery unknown, not “charger stopped.”
 
 ## Demo persistence and fidelity
 
@@ -129,10 +132,28 @@ See [the current backend contract](docs/API-CONTRACT.md) for payloads, units, ga
 - Web Locks serialize demo transactions between tabs. Storage events synchronize their views without sharing identity. Without Web Locks, use one tab.
 - Deterministic, bounded ticks; maximum wall-clock catch-up is five seconds. Inactive-browser communication gaps trigger safe demo termination.
 - Rolling power history retains 60 points; command history 200; operational audit 500. Ledger/session history persists until site storage is cleared.
-- Approximately 3.0–4.2 V and up to 0.48 A drive a scaled EV-energy model. Above 80% battery the current tapers. Model scale and simulation time speed are distinct.
-- UI labels distinguish **DEMO MODE**, **SANDBOX**, **ESTIMATED**, **DIGITAL TWIN** and real backend **LIVE** data.
+- A station-level Digital Twin dispatches actual-scale kW. EV demand tapers above 80% and is capped by the station rating and each session’s remaining credit/capacity. The legacy `modelScale` field is retained for compatibility but is no longer used for new metering.
+- No global demo strip. Contextual **Digital Twin** / **Estimated** badges appear in admin telemetry; **Live** requires fresh measured backend telemetry. Sandbox labels remain on payment flows, and explicit demo authentication remains available.
 - Environmental dashboard values are illustrative, not certified emissions measurements.
 - Demo data is fictional and browser-local. It is not production accounting, security or a physical safety controller.
+
+## Station energy monitoring
+
+Open **Admin → Stations → a station** for the dispatch diagram, current KPIs, battery state, grid exchange, active sessions and controller freshness. **Admin Overview** summarizes every station; **Analytics** also exposes station history.
+
+- Idle: optional auxiliaries use solar first; remaining solar charges storage up to its SOC and power limit, then exports. With EV demand, solar supplies EVs first, storage covers shortfall above reserve, and grid covers the remainder.
+- Battery power is **positive for charging**, negative for discharging. Grid import and export cannot both be active in a normalized interval. Unsupported surplus is explicitly curtailed; unavailable supply reduces delivery.
+- Use **Energy policy** to configure capacity, reserve/max SOC, charge/discharge limits, auxiliary demand and import/export tariffs. Rates start unconfigured (zero); no government tariff is assumed. Grid tariffs do not change owner charging prices.
+- Energy is integrated into integer milli-Wh. Financial estimates accumulate energy × the tariff in effect, then convert to minor units. Rate changes never recalculate old intervals.
+- Last 60 samples support the **Live time window**. Hourly records are retained for 31 days (maximum 800 buckets per station). Last 24 hours, 7 days, 30 days and custom Dhaka-date ranges aggregate energy sums, time-weighted battery power and ending SOC. CSV is available under **Interval records & CSV export**.
+- Demo history accumulates while the browser is running; it does not invent 30 days of past measurements. Missing real telemetry displays unavailable, not simulated success.
+- Existing v3 wallet, vehicle and session data is preserved. Missing energy records are initialized lazily. Old small-scale solar inputs are migrated once; stable IDs are untouched.
+
+## Station map and receipts
+
+The map keeps one Leaflet instance mounted while markers and filters change. An explicit command (location, station selection or Fit stations) is the only recenter trigger. Manual pan/zoom state is tracked; resize invalidation only responds to actual container dimensions. List view, compact available-bay pins, keyboard selection, accuracy circle and a mobile preview sheet work without a paid map service. Failed tiles leave pins and the full list usable.
+
+Charging completion, verified top-up results, wallet transaction inspection and admin session/payment inspection reuse the same HelioBay receipt. A4 and compact layouts print only the receipt, preserve the existing logo and show recorded balances, energy/rate, BDT equivalence, dates and support instructions. Top-ups show Sandbox and an optional provider reference; a merchant reference is clearly identified when no provider reference exists. No QR or booking flow was introduced.
 
 ## Verification
 

@@ -35,6 +35,7 @@ type Snapshot = {
   stations: Station[];
   bays: Bay[];
   devices: Device[];
+  energy?: StationEnergy[]; // optional extension; absent means energy unavailable
   wallets: Wallet[];
   ledger: Ledger[];
   payments: Payment[];
@@ -60,7 +61,7 @@ Key model fields:
 | Bay | id, stationId, deviceId, number, relayChannel 1..32, connector, enabled, plugged, fault |
 | Device | id, stationId, online, lastSeen, firmware, stationBattery, solarW, gridBackup, gridExport, outcome |
 | Ledger | id, userId, kind, signed amountMinor, balanceAfterMinor, reference, reason, status posted, sandbox boolean, at |
-| Payment | id, userId, amountMinor, status pending/verified/failed/cancelled, sandbox true, createdAt, requestId; optional verifiedAt |
+| Payment | id, userId, amountMinor, status pending/verified/failed/cancelled, sandbox true, createdAt, requestId; optional verifiedAt, providerReference |
 | Policy | maxTopupMinor, defaultTariffMinor, demoSpeed 1/10/60, modelScale, targetBattery 50..100, communicationTimeoutMs 5000..120000 |
 
 Device `outcome` is a demo control retained for schema compatibility; return `success` in API mode. Do not use it as proof of hardware success. Policy demoSpeed/modelScale are ignored for metering in API mode. Station `image` currently accepts a stable local `/images/filename.webp` path; return a supplied asset until an approved media-origin contract is added.
@@ -69,15 +70,15 @@ A station has exactly **one controlling primary Device**, referenced by Station.
 
 ### Sessions and commands
 
-Session fields: id, ownerId, stationId, bayId, deviceId, vehicleId, state (pending/charging/completed), createdAt, updatedAt, optional completedAt/stopReason, initialBattery, battery, targetBattery, energyMWh, elapsedMs, tariffMinor, startingBalanceMinor, reservedMinor, costMinor, optional endingBalanceMinor, commandId, points[], events[].
+Session fields: id, ownerId, stationId, bayId, deviceId, vehicleId, state (pending/charging/completed), createdAt, updatedAt, optional startedAt/completedAt/stopReason, initialBattery, battery, targetBattery, energyMWh, elapsedMs, tariffMinor, startingBalanceMinor, reservedMinor, costMinor, optional endingBalanceMinor, commandId, points[], events[].
 
 Each telemetry point is:
 ```json
 {
   "at": "2026-09-02T12:00:00.000Z",
-  "voltage": 3.8,
-  "current": 0.45,
-  "powerW": 1.71,
+  "voltage": null,
+  "current": null,
+  "powerW": 30000,
   "energyMWh": 28000,
   "battery": 64.1,
   "source": "SOLAR",
@@ -113,6 +114,7 @@ All request and response bodies are JSON.
 | POST /admin/users/:id/wallet-adjustments | {amountMinor, reason, kind:"adjustment" or "reversal"} | Snapshot |
 | PUT /admin/stations/:id | Station | Snapshot |
 | PUT /admin/bays/:id | Bay | Snapshot |
+| PUT /admin/stations/:id/energy-policy | EnergyPolicy | Snapshot with updated station policy |
 | PATCH /admin/tariffs | Policy fields plus rollback boolean | Snapshot |
 | PATCH /admin/faults/:id | {status:"acknowledged" or "resolved", note} | Snapshot |
 
@@ -120,7 +122,7 @@ Public directory shape:
 ```ts
 { stations: Station[]; bays: Bay[]; devices: Device[]; policy: Policy }
 ```
-Return only public controller fields; no secrets. With lat/lng, compute distances on the backend and include distanceKm. The manual fallback currently matches public station areas/landmarks; independent city geocoding can be added behind that interface.
+Return only public controller fields; no secrets. With lat/lng, compute distances on the backend and include distanceKm. The map uses actual browser coordinates with Haversine on the loaded directory, never fabricated area coordinates. Station/area search is independent of geolocation. Optional server nearest queries remain available in the service.
 
 START body:
 ```json
@@ -198,3 +200,35 @@ The abbreviated example must be populated with schema-valid entities/policy. Rev
 The browser validates schema, rejects simulated hardware points in API mode, ignores older revisions and cleans up on account changes/unmount. Reconnection uses bounded backoff. Stale telemetry shows unavailable; an expired pending command offers refresh and indicates **unknown output**, never synthetic successful shutdown.
 
 Backend MQTT credentials, topics, relay pin mappings, physical emergency stops, watchdogs, current limits and authenticated telemetry belong to the backend/firmware integration.
+
+## Station-energy extension
+
+Schemas in `lib/energy/model.ts` extend Snapshot with optional `energy: StationEnergy[]`. Existing snapshots without it still parse and show an honest unavailable state. Each entry contains:
+
+- `stationId` and `policy: EnergyPolicy`.
+- `current: StationTelemetry`, with timestamp, stationId, telemetrySource (`live | estimated | digital_twin`).
+- Solar: voltageV, currentA, powerKw, energyTodayKwh.
+- Battery: socPct, capacityKwh, availableKwh **above reserve**, signed powerKw (+ charging / − discharging), state.
+- EV load: powerKw, energyTodayKwh, activeSessions.
+- Grid: importPowerKw, exportPowerKw, importEnergyTodayKwh, exportEnergyTodayKwh.
+- Finance: **importCostMinor / exportEarningsMinor** in integer poisha. BDT presentation divides by 100; do not send floating-point money in minor fields.
+- Controller: status online/offline and lastSeenAt. Also auxiliaryKw and curtailedKw.
+- `samples`: at most 60 telemetry records; `history`: at most 800 hourly EnergyBucket records.
+
+API snapshots reject Digital Twin current, historical and sample records. Derived backend records may use estimated. Live requires source=live and both observation/controller timestamps within the configured freshness window (future timestamps are rejected for freshness). Missing source fields must not be silently replaced with zero measurements. Return no energy record if a complete trustworthy payload is unavailable.
+
+EnergyPolicy contains capacityKwh, minSocPct, maxSocPct, maxChargeKw, maxDischargeKw, auxiliaryKw, importTariffMinor and exportTariffMinor. Reserve must be lower than max SOC. Tariffs are operator-configured integer poisha/kWh; zero means unconfigured. Policy updates use the existing authenticated/idempotent mutation client and require backend administrator authorization and audit.
+
+EnergyBucket contains at (hour start), durationMs, solarMWh, evMWh, importMWh, exportMWh, batterySocPct (ending), batteryKwMs (power × duration), importNumerator, exportNumerator and source. Numerators accumulate integer milli-Wh × the tariff in force; monetary minor units are floor(numerator / 1,000,000). This preserves sub-poisha precision across ticks and tariff changes. Backend adapters may construct these fields from durable meters and billing records. Samples/charts use kW; energy graphs use kWh; energy is never computed by summing power without time.
+
+Hourly buckets use UTC boundaries; daily grouping and current-day totals use Asia/Dhaka. The demo splits intervals at midnight/hour boundaries, uses bounded catch-up, and retains 31 days. History is recorded runtime, not manufactured historical activity. Future paginated history APIs can replace this adapter without rewriting the UI.
+
+The normalized contract does not permit simultaneous grid import/export. If a future backend measures distinct phases or independently connected meters that genuinely do both, extend this contract with meter topology and explanatory UI before enabling it.
+
+Stable Device, deviceId, relayChannel and /devices endpoint names are retained for wire compatibility. The product presents **Station Controller** and numbered bays, without hardware models, pins, topics or low-level diagnostics.
+
+## Receipt extension
+
+Session.startedAt is optional for backward compatibility; set it on confirmed charging start. Missing historical start times are identified rather than invented. Payment.providerReference is optional and should contain the backend-verified SSLCOMMERZ transaction reference. Without it, the merchant reference is labelled as such.
+
+Receipts derive top-up opening/closing balances from the matching posted ledger entry, never the current wallet. Charging receipts use frozen session settlement fields. Store immutable customer/station/vehicle receipt snapshots in a production backend to retain exact historical identities after edits/deletion; current frontend records use the available entity values with ID fallbacks. Operator contact is not invented: the receipt directs the owner to the station operator until real support configuration is supplied.
