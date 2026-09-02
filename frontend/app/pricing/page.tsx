@@ -2,5 +2,68 @@ import Link from "next/link";
 import { Check, Zap, ArrowUpRight } from "lucide-react";
 import { PublicShell, FinalCTA } from "@/components/shared/public-shell";
 import { PricingCalculator } from "@/components/shared/pricing-calculator";
-export const metadata={title:"Simple, transparent pricing"};
-export default function Page(){return <PublicShell><div className="container-wide"><div className="page-intro"><div className="eyebrow">EVERY WATT. NOTHING HIDDEN.</div><h1>Good energy.<br/>Straightforward pricing.</h1><p>Pay for the energy you use. No subscription. No surprises.</p></div><div className="grid-three pb-16">{[{title:"Take your time",type:"AC destination charging",price:15,power:"Up to 22 kW",text:"A relaxed top-up while you enjoy your day."},{title:"Keep your day moving",type:"DC fast charging",price:18,power:"Up to 60 kW",text:"A convenient charge for your everyday rhythm."},{title:"Back on the road",type:"Rapid DC charging",price:20,power:"Up to 120 kW",text:"More power when you have places to be."}].map((p,i)=><article className={`panel ${i===1?"!border-[#00b95b]":""}`} key={p.title}><div className="flex justify-between"><Zap size={22}/>{i===1&&<span className="text-[9px] uppercase tracking-widest text-green-800">Everyday favorite</span>}</div><p className="text-[10px] muted mt-6">{p.type}</p><h2 className="text-2xl mt-2">{p.title}</h2><div className="text-[43px] tracking-tighter mt-6">৳{p.price}<span className="text-sm muted tracking-normal"> / kWh</span></div><p className="text-xs muted mt-3">{p.text}</p><ul className="space-y-3 text-xs mt-7 mb-7">{[p.power,"Solar-first energy","Live session tracking","Clear digital receipts"].map(t=><li className="flex items-center gap-2" key={t}><Check size={13} className="text-green-700"/>{t}</li>)}</ul><Link href="/stations" className={`action w-full ${i===1?"action-primary":"action-outline"}`}>Find a station <ArrowUpRight size={14}/></Link></article>)}</div><div className="grid-two pb-20"><div id="policy" className="scroll-mt-28"><div className="eyebrow">KNOW BEFORE YOU GO</div><h2 className="editorial-heading">Your booking.<br/>Your peace of mind.</h2><div className="space-y-5 mt-7 text-sm muted"><p><strong className="text-foreground">A 30% advance secures your slot.</strong> It is deducted from your final energy bill. Each reservation includes a ৳20 booking fee.</p><p><strong className="text-foreground">Plans change. We understand.</strong> Cancel at least 1 hour before your slot and receive your advance minus the booking fee. Within 1 hour, the advance is non-refundable.</p><p><strong className="text-foreground">Only pay for energy delivered.</strong> When a session ends, unused advance is refunded and any remaining balance is recorded automatically in the demo.</p><p className="notice notice-warning">These are prototype pricing and refund rules. No real transactions are processed.</p></div></div><PricingCalculator/></div></div><FinalCTA/></PublicShell>;}
+
+export const metadata = {
+  title: "Simple, transparent pricing"
+};
+
+export default function Page() {
+  return (
+    <PublicShell>
+      <div className="container-wide">
+        <div className="page-intro">
+          <div className="eyebrow">EVERY WATT. NOTHING HIDDEN.</div>
+          <h1>Good energy.<br />Straightforward pricing.</h1>
+          <p>Pay for the energy you use. No subscription. No surprises.</p>
+        </div>
+        <div className="grid-three pb-16">{[{
+            title: "Take your time",
+            type: "AC destination charging",
+            price: 15,
+            power: "Up to 22 kW",
+            text: "A relaxed top-up while you enjoy your day."
+          }, {
+            title: "Keep your day moving",
+            type: "DC fast charging",
+            price: 18,
+            power: "Up to 60 kW",
+            text: "A convenient charge for your everyday rhythm."
+          }, {
+            title: "Back on the road",
+            type: "Rapid DC charging",
+            price: 20,
+            power: "Up to 120 kW",
+            text: "More power when you have places to be."
+          }].map((p, i) => <article className={`panel ${i === 1 ? "!border-[#00b95b]" : ""}`} key={p.title}>
+            <div className="flex justify-between">
+              <Zap size={22} />
+              {i === 1 && <span className="text-[9px] uppercase tracking-widest text-green-800">Everyday favorite</span>}
+            </div>
+            <p className="text-[10px] muted mt-6">{p.type}</p>
+            <h2 className="text-2xl mt-2">{p.title}</h2>
+            <div className="text-[43px] tracking-tighter mt-6">৳{p.price}<span className="text-sm muted tracking-normal">/ kWh</span></div>
+            <p className="text-xs muted mt-3">{p.text}</p>
+            <ul className="space-y-3 text-xs mt-7 mb-7">{[p.power, "Solar-first energy", "Live session tracking", "Clear digital receipts"].map(t => <li className="flex items-center gap-2" key={t}>
+                <Check size={13} className="text-green-700" />
+                {t}
+              </li>)}</ul>
+            <Link href="/stations" className={`action w-full ${i === 1 ? "action-primary" : "action-outline"}`}>Find a station <ArrowUpRight size={14} /></Link>
+          </article>)}</div>
+        <div className="grid-two pb-20">
+          <div id="policy" className="scroll-mt-28">
+            <div className="eyebrow">KNOW BEFORE YOU GO</div>
+            <h2 className="editorial-heading">Your booking.<br />Your peace of mind.</h2>
+            <div className="space-y-5 mt-7 text-sm muted">
+              <p><strong className="text-foreground">A 30% advance secures your slot.</strong>It is deducted from your final energy bill. Each reservation includes a ৳20 booking fee.</p>
+              <p><strong className="text-foreground">Plans change. We understand.</strong>Cancel at least 1 hour before your slot and receive your advance minus the booking fee. Within 1 hour, the advance is non-refundable.</p>
+              <p><strong className="text-foreground">Only pay for energy delivered.</strong>When a session ends, unused advance is refunded and any remaining balance is recorded automatically in the demo.</p>
+              <p className="notice notice-warning">These are prototype pricing and refund rules. No real transactions are processed.</p>
+            </div>
+          </div>
+          <PricingCalculator />
+        </div>
+      </div>
+      <FinalCTA />
+    </PublicShell>
+  );
+}

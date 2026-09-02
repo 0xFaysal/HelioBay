@@ -1,0 +1,50 @@
+import type { z } from "zod";
+
+export class ApiError extends Error {
+  status: number;
+  code: string;
+  constructor(message: string, status = 0, code = "NETWORK_ERROR") { super(message); this.name = "ApiError"; this.status = status; this.code = code; }
+}
+export interface ApiClientOptions {
+  baseUrl: string; token: () => Promise<string | null>; unauthorized: () => void;
+  fetcher?: typeof fetch; timeoutMs?: number;
+}
+export function createApiClient({ baseUrl, token, unauthorized, fetcher = fetch, timeoutMs = 8000 }: ApiClientOptions) {
+  return async function request<T>(path: string, schema: z.ZodType<T>, options: { method?: string; body?: unknown; signal?: AbortSignal; idempotencyKey?: string } = {}): Promise<T> {
+    if (!baseUrl) throw new ApiError("Backend URL is not configured. Set NEXT_PUBLIC_API_BASE_URL and retry.", 0, "CONFIGURATION");
+    let url: URL;
+    try { url = new URL(`${baseUrl}${path}`); } catch { throw new ApiError("The configured backend URL is invalid.", 0, "CONFIGURATION"); }
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new ApiError("Use a valid HTTP(S) backend URL without credentials.", 0, "CONFIGURATION");
+    const method = options.method ?? "GET";
+    const attempts = method === "GET" ? 2 : 1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      options.signal?.throwIfAborted();
+      const controller = new AbortController();
+      const abort = () => controller.abort(options.signal?.reason);
+      options.signal?.addEventListener("abort", abort, { once: true });
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const bearer = await token();
+        controller.signal.throwIfAborted();
+        const response = await fetcher(url, {
+          method, signal: controller.signal, cache: "no-store",
+          headers: { Accept: "application/json", ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}), ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}), ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}) },
+          body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        });
+        if (response.status === 401) { unauthorized(); throw new ApiError("Your session expired. Please sign in again.", 401, "UNAUTHORIZED"); }
+        const json: unknown = response.status === 204 ? null : await response.json().catch(() => { throw new ApiError("Backend returned invalid JSON.", response.status, "INVALID_RESPONSE"); });
+        if (!response.ok) throw new ApiError(response.status === 403 ? "Administrator authorization is required." : `Backend request failed (${response.status}). Please retry.`, response.status, "HTTP_ERROR");
+        const parsed = schema.safeParse(json);
+        if (!parsed.success) throw new ApiError("Backend data failed validation. No unverified values were applied.", response.status, "INVALID_RESPONSE");
+        return parsed.data;
+      } catch (error) {
+        if (options.signal?.aborted) throw options.signal.reason ?? new DOMException("Aborted", "AbortError");
+        const failure = error instanceof ApiError ? error : new ApiError(controller.signal.aborted ? "Backend request timed out. Check the connection and retry." : "Cannot reach the backend. Check the connection and retry.", 0, controller.signal.aborted ? "TIMEOUT" : "NETWORK_ERROR");
+        if (attempt + 1 === attempts || failure.status > 0 && failure.status < 500 || failure.code === "INVALID_RESPONSE") throw failure;
+      } finally {
+        clearTimeout(timer); options.signal?.removeEventListener("abort", abort);
+      }
+    }
+    throw new ApiError("Backend request failed.");
+  };
+}

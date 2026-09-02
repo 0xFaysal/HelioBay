@@ -1,12 +1,212 @@
 "use client";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowUpRight, ArrowRight, BatteryCharging, CarFront, Sun, Leaf, Zap, CreditCard, CalendarDays, MapPin } from "lucide-react";
+
+import {
+  ArrowUpRight,
+  ArrowRight,
+  BatteryCharging,
+  CarFront,
+  Sun,
+  Leaf,
+  Zap,
+  CreditCard,
+  CalendarDays,
+  MapPin,
+} from "lucide-react";
+
 import { useOwnerData } from "@/store/demo-store";
 import { stationService } from "@/lib/services/stations";
 import { dateTime, money } from "@/lib/services/booking-rules";
 import { AssetImage } from "@/components/shared/asset-image";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-const AnalyticsChart=dynamic(()=>import("./analytics-chart"),{loading:()=> <Skeleton className="h-[220px]"/>});
-export function Dashboard(){const data=useOwnerData();if(!data)return null;const vehicle=data.vehicles.find(v=>v.id===data.selectedVehicleId);const upcoming=data.bookings.filter(b=>b.status==="upcoming").sort((a,b)=>a.start.localeCompare(b.start))[0];const active=data.sessions.find(s=>s.status!=="completed");const energy=data.sessions.reduce((n,s)=>n+s.energy,0);const renewable=energy?Math.round(data.sessions.reduce((n,s)=>n+s.energy*s.solar,0)/energy):0;const spent=data.payments.reduce((n,p)=>n+(p.kind==="refund"?-p.amount:p.amount),0);const weeks=[1,2,3,4].map(n=>({label:`Week ${n}`,value:Math.round(data.sessions.filter(s=>Math.min(4,Math.ceil(new Date(s.createdAt).getDate()/8))===n&&new Date(s.createdAt).getMonth()===new Date().getMonth()).reduce((sum,s)=>sum+s.energy,0)*10)/10}));return <><div className="owner-heading"><div><h1>A brighter day, {data.profile.name.split(" ")[0]}.</h1><p>Your energy, your journeys. All looking good.</p></div><Link href="/stations" className="action action-dark"><Zap size={14}/>Find a charge <ArrowUpRight size={14}/></Link></div><div className="dashboard-grid"><section className="panel !bg-[#132d20] text-white relative overflow-hidden"><div className="relative z-10"><div className="flex justify-between items-center"><span className="text-[10px] uppercase tracking-widest text-[#bdd2c3]">YOUR EVERYDAY COMPANION</span><CarFront size={22} className="text-[#aad3b7]"/></div><h2 className="text-2xl mt-6">{vehicle?.name??"Your next journey awaits."}</h2><p className="text-[10px] text-[#b4c9bb] mt-2">{vehicle?.plate??"Add your first electric vehicle to get started."}</p><div className="flex justify-between items-end mt-7"><div><span className="text-5xl tracking-tighter">{Math.round(vehicle?.battery??0)}<span className="text-2xl text-[#adc6b6]">%</span></span><p className="text-[10px] text-[#b4c9bb] mt-1">Current battery · Demo estimate</p></div><BatteryCharging size={45} strokeWidth={1.2} className="text-[#8bedae]"/></div><Progress value={vehicle?.battery??0} aria-label="Vehicle battery percentage" className="mt-6 [&_[data-slot=progress-track]]:bg-white/15"/><div className="flex justify-between mt-5 text-[10px]"><span className="text-[#b4c9bb]">{vehicle?`${vehicle.capacity} kWh battery · ${vehicle.connector}`:"Set up your vehicle"}</span><Link href="/vehicles" className="flex items-center gap-2">Manage vehicle <ArrowUpRight size={12}/></Link></div></div></section><section className="panel"><div className="panel-top"><h2 className="panel-title">Your next stop</h2><CalendarDays size={17} className="muted"/></div>{upcoming?<><div className="relative h-[100px] rounded-lg overflow-hidden mb-4"><AssetImage src="/images/station.webp" alt="Solar charging station concept" fill sizes="450px"/></div><h3 className="text-lg">{stationService.get(upcoming.stationId)?.name}</h3><p className="text-[11px] muted mt-2">{dateTime(upcoming.start)}</p><div className="flex items-center justify-between mt-5"><span className="text-[10px] px-2 py-1 bg-green-50 text-green-800 rounded">{upcoming.bayId} · Confirmed</span><Link href={`/bookings/${upcoming.id}`} className="text-xs font-medium flex items-center gap-2">View booking <ArrowRight size={13}/></Link></div></>:<div className="py-9"><h3 className="text-xl">A clear calendar.</h3><p className="text-xs muted my-3">Book a convenient time for your next charge.</p><Link href="/stations" className="action action-outline">Explore stations</Link></div>}</section></div><div className="metric-grid">{[{icon:Zap,label:"Energy delivered",value:`${energy.toFixed(1)} kWh`,note:"Across your recorded sessions"},{icon:Sun,label:"Renewable energy",value:`${renewable}%`,note:"Energy-weighted solar mix"},{icon:Leaf,label:"CO₂ avoided",value:`${(energy*renewable/100*.4).toFixed(1)} kg`,note:"Illustrative · 0.4 kg per solar kWh"},{icon:CreditCard,label:"Net payments",value:money(spent),note:"Simulated payments less refunds"}].map(m=><div className="metric-card" key={m.label}><div className="flex justify-between gap-2 text-[11px] muted"><span>{m.label}</span><m.icon size={16} className="text-green-800"/></div><strong>{m.value}</strong><small>{m.note}</small></div>)}</div>{active&&<section className="notice flex flex-wrap gap-4 items-center justify-between mb-6"><div><strong className="text-sm">Your charging session is {active.status.replace("-"," ")}.</strong><p className="text-xs">{stationService.get(active.stationId)?.name} · {active.energy.toFixed(2)} kWh delivered</p></div><Link href={`/charging/${active.id}`} className="action action-primary !min-h-9">View live session <ArrowUpRight size={14}/></Link></section>}<div className="dashboard-grid"><section className="panel min-w-0"><div className="panel-top"><div><h2 className="panel-title">A month of moving forward.</h2><p className="text-[10px] muted mt-1">Your energy use this month · kWh</p></div><Link href="/history" className="text-[10px] flex items-center gap-1">View history <ArrowUpRight size={12}/></Link></div><AnalyticsChart data={weeks}/></section><section className="panel"><div className="panel-top"><h2 className="panel-title">Good energy nearby</h2><Link href="/stations" aria-label="View all nearby stations"><ArrowUpRight size={16}/></Link></div>{["green-point","gulshan-grove","dhanmondi-lake"].map(id=>{const s=stationService.get(id)!;return <Link href={`/stations/${id}`} key={id} className="flex gap-3 items-center border-b last:border-0 py-4"><span className="bg-muted p-3 rounded-lg"><MapPin size={18}/></span><span className="flex-1"><strong className="text-[11px] block">{s.name}</strong><span className="text-[10px] muted">{s.distance} km · {s.available} available</span></span><span className="text-[11px]">{money(s.price)}<span className="text-[9px] muted">/kWh</span></span></Link>;})}</section></div><div className="dashboard-grid mt-6"><section className="panel"><div className="panel-top"><h2 className="panel-title">Recent activity</h2><Link href="/payments" className="text-[10px]">All payments →</Link></div>{data.payments.slice(0,3).map(p=><div className="data-row" key={p.id}><div><strong className="text-xs font-medium">{p.description}</strong><p className="text-[10px] muted">{p.method} · {dateTime(p.createdAt)}</p></div><span className={p.kind==="refund"?"text-green-700":""}>{p.kind==="refund"?"+":"−"}{money(p.amount)}</span></div>)}{!data.payments.length&&<p className="text-xs muted">Your payments will appear here after your first reservation.</p>}</section><section className="panel !bg-[#edf6ed]"><Sun size={25} className="text-green-800"/><h2 className="text-xl mt-4">Follow the sunshine.</h2><p className="text-xs muted mt-3">Green Point has a 92% solar mix in this demo. A midday stop is a great way to make your next charge a little greener.</p><Link href="/stations/green-point" className="text-xs font-medium inline-flex gap-2 items-center mt-5">Plan a greener charge <ArrowUpRight size={13}/></Link></section></div><div className="flex flex-wrap gap-3 mt-6">{[["Add a vehicle","/vehicles"],["Manage bookings","/bookings"],["Notification preferences","/profile"]].map(([l,h])=><Link className="action action-outline !text-xs !min-h-10" href={h} key={h}>{l}<ArrowUpRight size={13}/></Link>)}</div></>;}
+import { AnimatedNumber } from "@/components/shared/animated-number";
+
+const AnalyticsChart = dynamic(() => import("./analytics-chart"), {
+  loading: () => <Skeleton className="h-[220px]" />
+});
+
+export function Dashboard() {
+  const data = useOwnerData();
+
+  if (!data)
+    return null;
+
+  const vehicle = data.vehicles.find(v => v.id === data.selectedVehicleId);
+  const upcoming = data.bookings.filter(b => b.status === "upcoming").sort((a, b) => a.start.localeCompare(b.start))[0];
+  const active = data.sessions.find(s => s.status !== "completed");
+  const energy = data.sessions.reduce((n, s) => n + s.energy, 0);
+  const renewable = energy ? Math.round(data.sessions.reduce((n, s) => n + s.energy * s.solar, 0) / energy) : 0;
+  const spent = data.payments.reduce((n, p) => n + (p.kind === "refund" ? -p.amount : p.amount), 0);
+
+  const weeks = [1, 2, 3, 4].map(n => ({
+    label: `Week ${n}`,
+
+    value: Math.round(data.sessions.filter(
+      s => Math.min(4, Math.ceil(new Date(s.createdAt).getDate() / 8)) === n && new Date(s.createdAt).getMonth() === new Date().getMonth()
+    ).reduce((sum, s) => sum + s.energy, 0) * 10) / 10
+  }));
+
+  return (
+    <>
+      <div className="owner-heading">
+        <div>
+          <h1>A brighter day, {data.profile.name.split(" ")[0]}.</h1>
+          <p>Your energy, your journeys. All looking good.</p>
+        </div>
+        <Link href="/stations" className="action action-dark"><Zap size={14} />Find a charge <ArrowUpRight size={14} /></Link>
+      </div>
+      <div className="dashboard-grid">
+        <section className="panel !bg-[#132d20] text-white relative overflow-hidden"><div className="relative z-10">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] uppercase tracking-widest text-[#bdd2c3]">YOUR EVERYDAY COMPANION</span>
+              <CarFront size={22} className="text-[#aad3b7]" />
+            </div>
+            <h2 className="text-2xl mt-6">{vehicle?.name ?? "Your next journey awaits."}</h2>
+            <p className="text-[10px] text-[#b4c9bb] mt-2">{vehicle?.plate ?? "Add your first electric vehicle to get started."}</p>
+            <div className="flex justify-between items-end mt-7">
+              <div>
+                <span className="text-5xl tracking-tighter">
+                  <AnimatedNumber value={vehicle?.battery ?? 0} />
+                  <span className="text-2xl text-[#adc6b6]">%</span>
+                </span>
+                <p className="text-[10px] text-[#b4c9bb] mt-1">Current battery · Demo estimate</p>
+              </div>
+              <BatteryCharging size={45} strokeWidth={1.2} className="text-[#8bedae]" />
+            </div>
+            <Progress
+              value={vehicle?.battery ?? 0}
+              aria-label="Vehicle battery percentage"
+              className="mt-6 [&_[data-slot=progress-track]]:bg-white/15" />
+            <div className="flex justify-between mt-5 text-[10px]">
+              <span className="text-[#b4c9bb]">{vehicle ? `${vehicle.capacity} kWh battery · ${vehicle.connector}` : "Set up your vehicle"}</span>
+              <Link href="/vehicles" className="flex items-center gap-2">Manage vehicle <ArrowUpRight size={12} /></Link>
+            </div>
+          </div></section>
+        <section className="panel">
+          <div className="panel-top">
+            <h2 className="panel-title">Your next stop</h2>
+            <CalendarDays size={17} className="muted" />
+          </div>
+          {upcoming ? <>
+            <div className="relative h-[100px] rounded-lg overflow-hidden mb-4"><AssetImage src="/images/station.webp" alt="Solar charging station concept" fill sizes="450px" /></div>
+            <h3 className="text-lg">{stationService.get(upcoming.stationId)?.name}</h3>
+            <p className="text-[11px] muted mt-2">{dateTime(upcoming.start)}</p>
+            <div className="flex items-center justify-between mt-5">
+              <span className="text-[10px] px-2 py-1 bg-green-50 text-green-800 rounded">{upcoming.bayId}· Confirmed</span>
+              <Link href={`/bookings/${upcoming.id}`} className="text-xs font-medium flex items-center gap-2">View booking <ArrowRight size={13} /></Link>
+            </div>
+          </> : <div className="py-9">
+            <h3 className="text-xl">A clear calendar.</h3>
+            <p className="text-xs muted my-3">Book a convenient time for your next charge.</p>
+            <Link href="/stations" className="action action-outline">Explore stations</Link>
+          </div>}
+        </section>
+      </div>
+      <div className="metric-grid">{[{
+          icon: Zap,
+          label: "Energy delivered",
+          value: `${energy.toFixed(1)} kWh`,
+          note: "Across your recorded sessions"
+        }, {
+          icon: Sun,
+          label: "Renewable energy",
+          value: `${renewable}%`,
+          note: "Energy-weighted solar mix"
+        }, {
+          icon: Leaf,
+          label: "CO₂ avoided",
+          value: `${(energy * renewable / 100 * .4).toFixed(1)} kg`,
+          note: "Illustrative · 0.4 kg per solar kWh"
+        }, {
+          icon: CreditCard,
+          label: "Net payments",
+          value: money(spent),
+          note: "Simulated payments less refunds"
+        }].map(m => <div className="metric-card" key={m.label}>
+          <div className="flex justify-between gap-2 text-[11px] muted">
+            <span>{m.label}</span>
+            <m.icon size={16} className="text-green-800" />
+          </div>
+          <strong>{m.value}</strong>
+          <small>{m.note}</small>
+        </div>)}</div>
+      {active && <section className="notice flex flex-wrap gap-4 items-center justify-between mb-6">
+        <div>
+          <strong className="text-sm">Your charging session is {active.status.replace("-", " ")}.</strong>
+          <p className="text-xs">{stationService.get(active.stationId)?.name}· {active.energy.toFixed(2)}kWh delivered</p>
+        </div>
+        <Link href={`/charging/${active.id}`} className="action action-primary !min-h-9">View live session <ArrowUpRight size={14} /></Link>
+      </section>}
+      <div className="dashboard-grid">
+        <section className="panel min-w-0">
+          <div className="panel-top">
+            <div>
+              <h2 className="panel-title">A month of moving forward.</h2>
+              <p className="text-[10px] muted mt-1">Your energy use this month · kWh</p>
+            </div>
+            <Link href="/history" className="text-[10px] flex items-center gap-1">View history <ArrowUpRight size={12} /></Link>
+          </div>
+          <AnalyticsChart data={weeks} />
+        </section>
+        <section className="panel">
+          <div className="panel-top">
+            <h2 className="panel-title">Good energy nearby</h2>
+            <Link href="/stations" aria-label="View all nearby stations"><ArrowUpRight size={16} /></Link>
+          </div>
+          {["green-point", "gulshan-grove", "dhanmondi-lake"].map(id => {
+            const s = stationService.get(id)!;
+
+            return (
+              <Link href={`/stations/${id}`} key={id} className="flex gap-3 items-center border-b last:border-0 py-4">
+                <span className="bg-muted p-3 rounded-lg"><MapPin size={18} /></span>
+                <span className="flex-1">
+                  <strong className="text-[11px] block">{s.name}</strong>
+                  <span className="text-[10px] muted">{s.distance}km · {s.available}available</span>
+                </span>
+                <span className="text-[11px]">
+                  {money(s.price)}
+                  <span className="text-[9px] muted">/kWh</span>
+                </span>
+              </Link>
+            );
+          })}
+        </section>
+      </div>
+      <div className="dashboard-grid mt-6">
+        <section className="panel">
+          <div className="panel-top">
+            <h2 className="panel-title">Recent activity</h2>
+            <Link href="/payments" className="text-[10px]">All payments →</Link>
+          </div>
+          {data.payments.slice(0, 3).map(p => <div className="data-row" key={p.id}>
+            <div>
+              <strong className="text-xs font-medium">{p.description}</strong>
+              <p className="text-[10px] muted">{p.method}· {dateTime(p.createdAt)}</p>
+            </div>
+            <span className={p.kind === "refund" ? "text-green-700" : ""}>
+              {p.kind === "refund" ? "+" : "−"}
+              {money(p.amount)}
+            </span>
+          </div>)}
+          {!data.payments.length && <p className="text-xs muted">Your payments will appear here after your first reservation.</p>}
+        </section>
+        <section className="panel !bg-[#edf6ed]">
+          <Sun size={25} className="text-green-800" />
+          <h2 className="text-xl mt-4">Follow the sunshine.</h2>
+          <p className="text-xs muted mt-3">Green Point has a 92% solar mix in this demo. A midday stop is a great way to make your next charge a little greener.</p>
+          <Link href="/stations/green-point" className="text-xs font-medium inline-flex gap-2 items-center mt-5">Plan a greener charge <ArrowUpRight size={13} /></Link>
+        </section>
+      </div>
+      <div className="flex flex-wrap gap-3 mt-6">{[
+          ["Add a vehicle", "/vehicles"],
+          ["Manage bookings", "/bookings"],
+          ["Notification preferences", "/profile"]
+        ].map(([l, h]) => <Link className="action action-outline !text-xs !min-h-10" href={h} key={h}>
+          {l}
+          <ArrowUpRight size={13} />
+        </Link>)}</div>
+    </>
+  );
+}

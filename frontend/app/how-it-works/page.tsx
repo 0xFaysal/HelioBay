@@ -4,5 +4,60 @@ import { PublicShell, FinalCTA } from "@/components/shared/public-shell";
 import { AssetImage } from "@/components/shared/asset-image";
 import { Reveal } from "@/components/shared/reveal";
 import { FAQ } from "@/components/shared/faq";
-export const metadata={title:"How HelioBay works"};
-export default function Page(){return <PublicShell><div className="container-wide"><div className="page-intro max-w-[650px]"><div className="eyebrow">DESIGNED AROUND YOUR DAY</div><h1>A smarter charge.<br/>An easier everyday.</h1><p>No guesswork. No unnecessary waiting. Just the right energy, in the right place, at the right time.</p></div><div className="relative h-[380px] rounded-2xl overflow-hidden mb-16"><AssetImage src="/images/station.webp" alt="Solar charging canopy in a green urban neighborhood" fill priority sizes="100vw"/></div><div className="grid-three pb-20">{[{icon:MapPin,n:"01",title:"Find your kind of station.",text:"Explore nearby stations on a map or in a list. Filter by connector, solar mix, availability, and price to find a spot that fits."},{icon:CalendarCheck,n:"02",title:"A time that’s yours.",text:"Pick a future slot, select your vehicle, and review the estimate. A small advance secures your bay. Your QR pass is ready instantly."},{icon:PlugZap,n:"03",title:"Plug in. Breathe out.",text:"Start your demo session, watch the energy flow, and pause or finish when you’re ready. Your final receipt keeps every detail clear."}].map(s=><Reveal className="step-card" key={s.n}><div className="flex justify-between"><s.icon size={25}/><span className="step-number">{s.n}</span></div><h3>{s.title}</h3><p>{s.text}</p></Reveal>)}</div><section id="faq" className="grid-two pb-20 scroll-mt-28"><div><div className="eyebrow">A LITTLE CLARITY</div><h2 className="editorial-heading">Good questions.<br/>Straight answers.</h2><p className="text-sm muted mt-5 max-w-sm">Get to know your new charging companion before your first stop.</p><Link href="/stations" className="action action-outline mt-6">Explore stations <ArrowUpRight size={14}/></Link></div><FAQ/></section></div><FinalCTA/></PublicShell>;}
+
+export const metadata = {
+  title: "How HelioBay works"
+};
+
+export default function Page() {
+  return (
+    <PublicShell>
+      <div className="container-wide">
+        <div className="page-intro max-w-[650px]">
+          <div className="eyebrow">DESIGNED AROUND YOUR DAY</div>
+          <h1>A smarter charge.<br />An easier everyday.</h1>
+          <p>No guesswork. No unnecessary waiting. Just the right energy, in the right place, at the right time.</p>
+        </div>
+        <div className="relative h-[380px] rounded-2xl overflow-hidden mb-16"><AssetImage
+            src="/images/station.webp"
+            alt="Solar charging canopy in a green urban neighborhood"
+            fill
+            priority
+            sizes="100vw" /></div>
+        <div className="grid-three pb-20">{[{
+            icon: MapPin,
+            n: "01",
+            title: "Find your kind of station.",
+            text: "Explore nearby stations on a map or in a list. Filter by connector, solar mix, availability, and price to find a spot that fits."
+          }, {
+            icon: CalendarCheck,
+            n: "02",
+            title: "A time that’s yours.",
+            text: "Pick a future slot, select your vehicle, and review the estimate. A small advance secures your bay. Your QR pass is ready instantly."
+          }, {
+            icon: PlugZap,
+            n: "03",
+            title: "Plug in. Breathe out.",
+            text: "Start your demo session, watch the energy flow, and pause or finish when you’re ready. Your final receipt keeps every detail clear."
+          }].map(s => <Reveal className="step-card" key={s.n}>
+            <div className="flex justify-between">
+              <s.icon size={25} />
+              <span className="step-number">{s.n}</span>
+            </div>
+            <h3>{s.title}</h3>
+            <p>{s.text}</p>
+          </Reveal>)}</div>
+        <section id="faq" className="grid-two pb-20 scroll-mt-28">
+          <div>
+            <div className="eyebrow">A LITTLE CLARITY</div>
+            <h2 className="editorial-heading">Good questions.<br />Straight answers.</h2>
+            <p className="text-sm muted mt-5 max-w-sm">Get to know your new charging companion before your first stop.</p>
+            <Link href="/stations" className="action action-outline mt-6">Explore stations <ArrowUpRight size={14} /></Link>
+          </div>
+          <FAQ />
+        </section>
+      </div>
+      <FinalCTA />
+    </PublicShell>
+  );
+}

@@ -10,5 +10,177 @@ import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Brand } from "@/components/shared/brand";
-export function Payments(){const d=useOwnerData();const [query,setQuery]=useState("");const [filter,setFilter]=useState("all");if(!d)return null;const payments=d.payments.filter(p=>(filter==="all"||p.kind===filter)&&`${p.id} ${p.bookingId} ${p.method} ${p.description}`.toLowerCase().includes(query.toLowerCase()));const total=d.payments.filter(p=>p.kind==="payment").reduce((s,p)=>s+p.amount,0);const refunds=d.payments.filter(p=>p.kind==="refund").reduce((s,p)=>s+p.amount,0);function download(){const csv="Reference,Booking,Type,Amount BDT,Method,Status,Date\n"+payments.map(p=>[p.id,p.bookingId,p.kind,p.amount,p.method,p.status,p.createdAt].join(",")).join("\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));const a=document.createElement("a");a.href=url;a.download="heliobay-demo-transactions.csv";a.click();URL.revokeObjectURL(url);}return <><div className="owner-heading"><div><h1>Every charge. All clear.</h1><p>Your payments, refunds, and receipts in one place.</p></div><Button variant="outline" onClick={download}><Download size={15}/>Export CSV</Button></div><div className="grid-three mb-6">{[{label:"Total payments",value:total,icon:CreditCard},{label:"Refunds returned",value:refunds,icon:RotateCcw},{label:"Net paid",value:total-refunds,icon:CreditCard}].map(m=><div className="metric-card" key={m.label}><div className="flex justify-between text-xs muted">{m.label}<m.icon size={16}/></div><strong>{money(m.value)}</strong><small>Simulated transactions only</small></div>)}</div><div className="panel"><div className="flex flex-wrap items-center justify-between gap-4 mb-6"><Tabs value={filter} onValueChange={v=>setFilter(String(v))}><TabsList className="!h-10">{["all","payment","refund"].map(f=><TabsTrigger value={f} key={f} className="capitalize !px-4">{f==="all"?"All activity":`${f}s`}</TabsTrigger>)}</TabsList></Tabs><Input className="max-w-[260px]" placeholder="Search reference or method" aria-label="Search payments" value={query} onChange={e=>setQuery(e.target.value)}/></div><div className="table-wrap"><Table><TableHeader><TableRow><TableHead>Transaction</TableHead><TableHead>Date</TableHead><TableHead>Method</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead><span className="sr-only">Receipt</span></TableHead></TableRow></TableHeader><TableBody>{payments.map(p=><TableRow key={p.id}><TableCell><strong className="text-xs font-medium">{p.description}</strong><span className="block text-[10px] muted mt-1">{p.id}</span></TableCell><TableCell className="text-[11px] muted">{dateTime(p.createdAt)}</TableCell><TableCell className="text-xs">{p.method}</TableCell><TableCell className={`text-xs ${p.kind==="refund"?"text-green-700":""}`}>{p.kind==="refund"?"+":"−"}{money(p.amount)}</TableCell><TableCell><span className="text-[10px] rounded px-2 py-1 bg-green-50 text-green-800">{p.kind==="refund"?"Returned":p.status==="refunded"?"Partly refunded":"Paid"}</span></TableCell><TableCell><Link href={`/payments/${p.id}`} aria-label={`View receipt ${p.id}`}><ArrowUpRight size={16}/></Link></TableCell></TableRow>)}</TableBody></Table></div>{!payments.length&&<div className="empty-state"><h3>No matching activity.</h3><p>Try another search or make your first reservation.</p></div>}</div><p className="notice mt-6">Refunds are credited immediately in this demo. Real processing times and settlement will depend on the payment provider. No bank or wallet has been charged.</p></>;}
-export function Receipt({id}:{id:string}){const d=useOwnerData();if(!d)return null;const p=d.payments.find(p=>p.id===id);if(!p)return <div className="empty-state"><h1 className="text-3xl">Receipt not found.</h1><Link href="/payments" className="action action-outline mt-5">Back to payments</Link></div>;const b=d.bookings.find(b=>b.id===p.bookingId);const station=b&&stationService.get(b.stationId);return <><div className="owner-heading no-print"><div><h1>Your receipt.</h1><p>A clear record of your simulated transaction.</p></div><Button onClick={()=>window.print()}><Printer size={16}/>Print receipt</Button></div><article className="panel receipt max-w-[760px] mx-auto"><div className="flex justify-between items-center border-b pb-7"><Brand/><span className="text-xs font-semibold text-green-800">SIMULATED RECEIPT</span></div><div className="flex justify-between gap-8 my-8"><div><p className="text-[10px] uppercase tracking-widest muted">Billed to</p><h2 className="text-xl mt-2">{d.profile.name}</h2><p className="text-xs muted">{d.profile.city}</p></div><div className="text-right text-xs"><strong>{p.id}</strong><p className="muted mt-2">{dateTime(p.createdAt)}</p></div></div><h3 className="text-xl">{station?.name??"HelioBay charging"}</h3><p className="text-xs muted mb-6 mt-2">{station?.address}</p>{[["Booking reference",p.bookingId],["Description",p.description],["Payment method",p.method],["Transaction type",p.kind],["Status",p.kind==="refund"?"Refund returned":"Payment recorded"],["Amount",money(p.amount)]].map(([label,value])=><div className="data-row" key={label}><span>{label}</span><strong className="text-right font-medium">{value}</strong></div>)}<p className="notice mt-7">This is a prototype receipt, not a tax invoice or proof of a real payment. No financial transaction has occurred.</p><p className="text-[10px] text-center muted mt-8">Thank you for choosing a brighter way forward.</p></article><Link href="/payments" className="action action-outline mt-6 no-print">← All payments</Link></>;}
+
+export function Payments() {
+  const d = useOwnerData();
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+
+  if (!d)
+    return null;
+
+  const payments = d.payments.filter(
+    p => (filter === "all" || p.kind === filter) && `${p.id} ${p.bookingId} ${p.method} ${p.description}`.toLowerCase().includes(query.toLowerCase())
+  );
+
+  const total = d.payments.filter(p => p.kind === "payment").reduce((s, p) => s + p.amount, 0);
+  const refunds = d.payments.filter(p => p.kind === "refund").reduce((s, p) => s + p.amount, 0);
+
+  function download() {
+    const csv = "Reference,Booking,Type,Amount BDT,Method,Status,Date\n" + payments.map(p => [p.id, p.bookingId, p.kind, p.amount, p.method, p.status, p.createdAt].join(",")).join("\n");
+
+    const url = URL.createObjectURL(new Blob([csv], {
+      type: "text/csv;charset=utf-8;"
+    }));
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "heliobay-demo-transactions.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <>
+      <div className="owner-heading">
+        <div>
+          <h1>Every charge. All clear.</h1>
+          <p>Your payments, refunds, and receipts in one place.</p>
+        </div>
+        <Button variant="outline" onClick={download}><Download size={15} />Export CSV</Button>
+      </div>
+      <div className="grid-three mb-6">{[{
+          label: "Total payments",
+          value: total,
+          icon: CreditCard
+        }, {
+          label: "Refunds returned",
+          value: refunds,
+          icon: RotateCcw
+        }, {
+          label: "Net paid",
+          value: total - refunds,
+          icon: CreditCard
+        }].map(m => <div className="metric-card" key={m.label}>
+          <div className="flex justify-between text-xs muted">
+            {m.label}
+            <m.icon size={16} />
+          </div>
+          <strong>{money(m.value)}</strong>
+          <small>Simulated transactions only</small>
+        </div>)}</div>
+      <div className="panel">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <Tabs value={filter} onValueChange={v => setFilter(String(v))}><TabsList className="!h-10">{["all", "payment", "refund"].map(
+                f => <TabsTrigger value={f} key={f} className="capitalize !px-4">{f === "all" ? "All activity" : `${f}s`}</TabsTrigger>
+              )}</TabsList></Tabs>
+          <Input
+            className="max-w-[260px]"
+            placeholder="Search reference or method"
+            aria-label="Search payments"
+            value={query}
+            onChange={e => setQuery(e.target.value)} />
+        </div>
+        <div className="table-wrap"><Table>
+            <TableHeader><TableRow>
+                <TableHead>Transaction</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Method</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead><span className="sr-only">Receipt</span></TableHead>
+              </TableRow></TableHeader>
+            <TableBody>{payments.map(p => <TableRow key={p.id}>
+                <TableCell>
+                  <strong className="text-xs font-medium">{p.description}</strong>
+                  <span className="block text-[10px] muted mt-1">{p.id}</span>
+                </TableCell>
+                <TableCell className="text-[11px] muted">{dateTime(p.createdAt)}</TableCell>
+                <TableCell className="text-xs">{p.method}</TableCell>
+                <TableCell className={`text-xs ${p.kind === "refund" ? "text-green-700" : ""}`}>
+                  {p.kind === "refund" ? "+" : "−"}
+                  {money(p.amount)}
+                </TableCell>
+                <TableCell><span className="text-[10px] rounded px-2 py-1 bg-green-50 text-green-800">{p.kind === "refund" ? "Returned" : p.status === "refunded" ? "Partly refunded" : "Paid"}</span></TableCell>
+                <TableCell><Link href={`/payments/${p.id}`} aria-label={`View receipt ${p.id}`}><ArrowUpRight size={16} /></Link></TableCell>
+              </TableRow>)}</TableBody>
+          </Table></div>
+        {!payments.length && <div className="empty-state">
+          <h3>No matching activity.</h3>
+          <p>Try another search or make your first reservation.</p>
+        </div>}
+      </div>
+      <p className="notice mt-6">Refunds are credited immediately in this demo. Real processing times and settlement will depend on the payment provider. No bank or wallet has been charged.</p>
+    </>
+  );
+}
+
+export function Receipt(
+  {
+    id
+  }: {
+    id: string;
+  }
+) {
+  const d = useOwnerData();
+
+  if (!d)
+    return null;
+
+  const p = d.payments.find(p => p.id === id);
+
+  if (!p) return (
+    <div className="empty-state">
+      <h1 className="text-3xl">Receipt not found.</h1>
+      <Link href="/payments" className="action action-outline mt-5">Back to payments</Link>
+    </div>
+  );
+
+  const b = d.bookings.find(b => b.id === p.bookingId);
+  const station = b && stationService.get(b.stationId);
+
+  return (
+    <>
+      <div className="owner-heading no-print">
+        <div>
+          <h1>Your receipt.</h1>
+          <p>A clear record of your simulated transaction.</p>
+        </div>
+        <Button onClick={() => window.print()}><Printer size={16} />Print receipt</Button>
+      </div>
+      <article className="panel receipt max-w-[760px] mx-auto">
+        <div className="flex justify-between items-center border-b pb-7">
+          <Brand />
+          <span className="text-xs font-semibold text-green-800">SIMULATED RECEIPT</span>
+        </div>
+        <div className="flex justify-between gap-8 my-8">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest muted">Billed to</p>
+            <h2 className="text-xl mt-2">{d.profile.name}</h2>
+            <p className="text-xs muted">{d.profile.city}</p>
+          </div>
+          <div className="text-right text-xs">
+            <strong>{p.id}</strong>
+            <p className="muted mt-2">{dateTime(p.createdAt)}</p>
+          </div>
+        </div>
+        <h3 className="text-xl">{station?.name ?? "HelioBay charging"}</h3>
+        <p className="text-xs muted mb-6 mt-2">{station?.address}</p>
+        {[
+          ["Booking reference", p.bookingId],
+          ["Description", p.description],
+          ["Payment method", p.method],
+          ["Transaction type", p.kind],
+          ["Status", p.kind === "refund" ? "Refund returned" : "Payment recorded"],
+          ["Amount", money(p.amount)]
+        ].map(([label, value]) => <div className="data-row" key={label}>
+          <span>{label}</span>
+          <strong className="text-right font-medium">{value}</strong>
+        </div>)}
+        <p className="notice mt-7">This is a prototype receipt, not a tax invoice or proof of a real payment. No financial transaction has occurred.</p>
+        <p className="text-[10px] text-center muted mt-8">Thank you for choosing a brighter way forward.</p>
+      </article>
+      <Link href="/payments" className="action action-outline mt-6 no-print">← All payments</Link>
+    </>
+  );
+}
