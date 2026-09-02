@@ -16,9 +16,9 @@ export const useCreditStore = create<State>()(persist(set => ({
   name: "heliobay-credit-v3", version: 3, skipHydration: true, storage: createJSONStorage(() => localStorage),
   partialize: s => ({ data: isDemo ? s.data : seed("1970-01-01T00:00:00.000Z", true) }),
   merge: (value, current) => {
-    if (!isDemo) return current;
+    if (!isDemo || value == null) return current;
     const parsed = snapshotSchema.safeParse((value as { data?: unknown })?.data);
-    return parsed.success ? { ...current, data: parsed.data } : { ...current, error: "Saved demo data could not be validated. Do not use this browser for real financial records." };
+    return parsed.success ? { ...current, data: parsed.data, error: current.error.startsWith("Saved demo data") ? "" : current.error } : { ...current, error: "Saved demo data could not be validated. Do not use this browser for real financial records." };
   },
 }));
 export async function hydrateCredits() {
