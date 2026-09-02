@@ -30,7 +30,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       const account: Account | null = u ? { id: u.uid, name: u.displayName || "EV Owner", email: u.email || "", role: result?.claims.role === "admin" ? "admin" : "owner", demo: false } : null;
       setFirebaseUser(account); setAuthReady(true);
       if (account) useDemoStore.getState().setAccount(account);
-      else if (!useDemoStore.getState().account?.demo) useDemoStore.getState().setAccount(null);
+      else if (useDemoStore.getState().account && !useDemoStore.getState().account?.demo) useDemoStore.getState().setAccount(null);
     }, () => { setAuthReady(true); toast.error("Unable to restore sign-in. Please sign in again."); });
     return () => { disposed = true; unsubscribe(); };
   }, [hydrated]);

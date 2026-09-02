@@ -11,7 +11,7 @@ function subscribe(listener: () => void) {
   if (!timer) timer = setInterval(() => {
     currentTime = Date.now();
     listeners.forEach(l => l());
-  }, 30000);
+  }, 1000);
 
   return () => {
     listeners.delete(listener);

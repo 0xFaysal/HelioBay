@@ -22,6 +22,11 @@ export const faultSchema = z.object({ id, stationId: id, bayId: id.optional(), d
 export const auditSchema = z.object({ id, actorId: id, action: z.string(), reference: id, reason: z.string(), at: iso });
 export const snapshotSchema = z.object({ revision: integer, lastTick: iso, users: z.array(userSchema), vehicles: z.array(vehicleSchema), stations: z.array(stationSchema), bays: z.array(baySchema), devices: z.array(deviceSchema), wallets: z.array(walletSchema), ledger: z.array(ledgerSchema), payments: z.array(paymentSchema), sessions: z.array(sessionSchema), commands: z.array(commandSchema), faults: z.array(faultSchema), audit: z.array(auditSchema), policy: policySchema, previousPolicy: policySchema.nullable() });
 export type User = z.infer<typeof userSchema>;
+// Reject simulated telemetry or impossible monetary state at the API boundary.
+export const apiSnapshotSchema = snapshotSchema.refine(data =>
+  data.sessions.every(s => !s.points.some(p => p.simulated) && s.costMinor <= s.reservedMinor) &&
+  data.wallets.every(w => data.sessions.filter(s => s.ownerId === w.userId && s.state !== "completed").reduce((sum,s) => sum + s.reservedMinor,0) <= w.balanceMinor),
+  "Backend snapshot contains simulated telemetry or an invalid credit hold.");
 export type Vehicle = z.infer<typeof vehicleSchema>;
 export type Station = z.infer<typeof stationSchema>;
 export type Bay = z.infer<typeof baySchema>;

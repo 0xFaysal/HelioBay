@@ -15,7 +15,7 @@ export function actor(data: Snapshot, who: Actor | null, admin = false) {
   if (admin && user.role !== "admin") throw new Error("Administrator access required.");
   return user;
 }
-export function validateStart(data: Snapshot, who: Actor | null, input: StartInput, existingId?: string) {
+export function validateStart(data: Snapshot, who: Actor | null, input: StartInput, existingId?: string, now = Date.parse(data.lastTick)) {
   const user = actor(data, who);
   const ownerId = user.role === "admin" ? input.ownerId ?? user.id : user.id;
   const owner = data.users.find(u => u.id === ownerId);
@@ -25,7 +25,7 @@ export function validateStart(data: Snapshot, who: Actor | null, input: StartInp
   const bay = data.bays.find(b => b.id === input.bayId && b.stationId === input.stationId);
   const device = data.devices.find(d => d.id === station?.deviceId);
   if (!vehicle || !station || !bay || !device) throw new Error("Select a valid vehicle, station and bay.");
-  if (!station.online || !device.online || Date.parse(data.lastTick) - Date.parse(device.lastSeen) > data.policy.communicationTimeoutMs) throw new Error("Station device is offline or its communication has timed out.");
+  if (!station.online || !device.online || now - Date.parse(device.lastSeen) > data.policy.communicationTimeoutMs) throw new Error("Station device is offline or its communication has timed out.");
   if (!bay.enabled || bay.fault || bay.deviceId !== device.id) throw new Error("This bay is disabled, faulty or incorrectly assigned.");
   if (!bay.plugged) throw new Error("Connect the plug to your car first. Plug detection is required.");
   if (vehicle.connector !== bay.connector) throw new Error("This vehicle uses a different connector.");
@@ -39,7 +39,7 @@ export function startSession(data: Snapshot, who: Actor | null, input: StartInpu
   const id = `SES-${input.requestId}`;
   const existing = data.sessions.find(s => s.id === id);
   if (existing) { if (existing.ownerId !== who?.id && who?.role !== "admin") throw new Error("Session belongs to another user."); return existing; }
-  const { ownerId, vehicle, station, bay, device, available } = validateStart(data, who, input);
+  const { ownerId, vehicle, station, bay, device, available } = validateStart(data, who, input, undefined, now);
   const iso = new Date(now).toISOString(); const commandId = `CMD-${input.requestId}`;
   const session = { id, ownerId, stationId: station.id, bayId: bay.id, deviceId: device.id, vehicleId: vehicle.id, state: "pending" as const, createdAt: iso, updatedAt: iso, initialBattery: vehicle.battery, battery: vehicle.battery, targetBattery: data.policy.targetBattery, energyMWh: 0, elapsedMs: 0, tariffMinor: station.priceMinor, startingBalanceMinor: walletView(data, ownerId).balanceMinor, reservedMinor: available, costMinor: 0, commandId, points: [], events: [{ at: iso, message: "START requested; credits reserved. Waiting for device acknowledgement." }] };
   data.sessions.unshift(session);

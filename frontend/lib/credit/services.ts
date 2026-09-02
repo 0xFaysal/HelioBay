@@ -5,7 +5,7 @@ import { isDemo, apiBaseUrl } from "@/lib/config";
 import { firebaseAuth, firebaseConfigured } from "@/lib/firebase/client";
 import { createApiClient } from "@/lib/api/client";
 import { actor, adjust, advance, audit, createPayment, finish, sendCommand, startSession } from "./engine";
-import { baySchema, deviceSchema, paymentSchema, policySchema, snapshotSchema, stationSchema, userSchema, vehicleSchema, type Coordinates, type Device, type Payment, type Policy, type Snapshot, type StartInput, type Station, type Bay, type Vehicle, type User } from "./model";
+import { baySchema, deviceSchema, paymentSchema, policySchema, apiSnapshotSchema, stationSchema, userSchema, vehicleSchema, type Coordinates, type Device, type Payment, type Policy, type Snapshot, type StartInput, type Station, type Bay, type Vehicle, type User } from "./model";
 import { gatewayUrl, validateTopup } from "./money";
 import { distance } from "./selectors";
 
@@ -15,19 +15,19 @@ const snapshot = () => useCreditStore.getState().data;
 const encoded = encodeURIComponent;
 async function mutation(path: string, body: unknown, method = "POST", key = crypto.randomUUID()) {
   const identity = who()?.id;
-  const data = await request(path, snapshotSchema, { method, body, idempotencyKey: key });
+  const data = await request(path, apiSnapshotSchema, { method, body, idempotencyKey: key });
   if (who()?.id !== identity) throw new Error("The signed-in account changed. Refresh before continuing.");
-  useCreditStore.setState({ data }); return data;
+  useCreditStore.setState(s => data.revision >= s.data.revision ? {data} : {}); return data;
 }
 export const creditService = {
   async refresh(signal?: AbortSignal) {
     if (isDemo) { await useCreditStore.persist.rehydrate(); return; }
     const identity = who()?.id; useCreditStore.setState({ loading: true, error: "" });
     try {
-      if (identity) { const data = await request("/platform/snapshot", snapshotSchema, { signal }); if (who()?.id === identity) useCreditStore.setState({ data }); }
+      if (identity) { const data = await request("/platform/snapshot", apiSnapshotSchema, { signal }); if (who()?.id === identity) useCreditStore.setState(s => data.revision >= s.data.revision ? {data} : {}); }
       else await creditService.stations.nearest(undefined, signal);
-    } catch (e) { if (!signal?.aborted) useCreditStore.setState({ error: (e as Error).message }); throw e; }
-    finally { useCreditStore.setState({ loading: false }); }
+    } catch (e) { if (!signal?.aborted && who()?.id === identity) useCreditStore.setState({ error: (e as Error).message }); throw e; }
+    finally { if (who()?.id === identity) useCreditStore.setState({ loading: false }); }
   },
   stations: {
     async nearest(location?: Coordinates, signal?: AbortSignal) {
@@ -42,7 +42,7 @@ export const creditService = {
         const user = actor(data, who(), true); const existing = data.stations.find(s => s.id === parsed.id);
         if (data.stations.some(s => s.deviceId === parsed.deviceId && s.id !== parsed.id)) throw new Error("A primary ESP32 can control only one station.");
         if (existing && existing.deviceId !== parsed.deviceId) {
-          if (data.sessions.some(s => s.stationId === parsed.id && s.state !== "completed")) throw new Error("Stop all station sessions before assigning a device.");
+          if (data.sessions.some(s => s.stationId === parsed.id && s.state !== "completed") || data.commands.some(c => c.deviceId === existing.deviceId && c.status === "pending")) throw new Error("Stop all station sessions and resolve pending commands before assigning a device.");
           const d = data.devices.find(d => d.id === existing.deviceId)!; d.id = parsed.deviceId;
           for (const b of data.bays.filter(b => b.stationId === parsed.id)) b.deviceId = parsed.deviceId;
         }

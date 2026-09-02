@@ -4,7 +4,7 @@ import { isDemo, wsUrl } from "@/lib/config";
 import { useCreditStore, transaction } from "@/store/credit-store";
 import { creditService } from "@/lib/credit/services";
 import { advance } from "@/lib/credit/engine";
-import { snapshotSchema } from "@/lib/credit/model";
+import { apiSnapshotSchema } from "@/lib/credit/model";
 import { firebaseAuth, firebaseConfigured } from "@/lib/firebase/client";
 
 export function PlatformRuntime() {
@@ -34,12 +34,12 @@ export function PlatformRuntime() {
         const token = firebaseConfigured ? await firebaseAuth().currentUser?.getIdToken() : null;
         if (disposed) return;
         socket = new WebSocket(wsUrl);
-        socket.onopen = () => { socket?.send(JSON.stringify({ type: "authenticate", token })); useCreditStore.setState({ connection: "Backend connected · awaiting validated data" }); retries = 0; };
+        socket.onopen = () => { socket?.send(JSON.stringify({ type: "authenticate", token })); useCreditStore.setState({ connection: "Backend connected · awaiting validated data" }); };
         socket.onmessage = e => {
           if (disposed || useCreditStore.getState().account?.id !== identity) return;
           try {
             const envelope = JSON.parse(String(e.data)); if (envelope.type !== "snapshot") throw new Error("Unsupported event");
-            const data = snapshotSchema.parse(envelope.data);
+            const data = apiSnapshotSchema.parse(envelope.data); retries = 0;
             if (data.sessions.some(s => s.points.some(p => p.simulated))) throw new Error("Simulated telemetry rejected in API mode");
             if (data.revision >= useCreditStore.getState().data.revision) useCreditStore.setState({ data, connection: "LIVE · backend verified", error: "" });
           } catch { useCreditStore.setState({ connection: "Invalid realtime payload rejected" }); }

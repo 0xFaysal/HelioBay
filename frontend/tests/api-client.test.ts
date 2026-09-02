@@ -37,3 +37,12 @@ test("external telemetry and acknowledgements reject corrupt values", () => {
   assert.equal(telemetrySchema.safeParse({ deviceId: "ST001", carBatteryPercent: 150 }).success, false);
   assert.equal(acknowledgementSchema.safeParse({ commandId: "CMD", success: "yes" }).success, false);
 });
+test("403, 409, 422, 429 and 500 preserve failure status and never retry a mutation", async () => {
+  for (const status of [403,409,422,429,500]) {
+    let count=0;
+    const client=createApiClient({baseUrl:"https://backend.example",token:async()=>"token",unauthorized(){},fetcher:async(_url,options)=>{
+      count++;assert.equal((options?.headers as Record<string,string>)["Idempotency-Key"],"same-operation");return new Response("{}",{status});
+    }});
+    await assert.rejects(client("/wallet/top-ups",schema,{method:"POST",body:{amountMinor:1000},idempotencyKey:"same-operation"}),(e:unknown)=>e instanceof ApiError && e.status===status);assert.equal(count,1);
+  }
+});

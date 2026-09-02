@@ -11,11 +11,15 @@ export function walletView(data: Snapshot, id: string) {
   const cost = sessions.reduce((sum, s) => sum + s.costMinor, 0);
   return { balanceMinor: Math.max(0, balance - cost), reservedMinor: Math.max(0, reserved - cost), availableMinor: Math.max(0, balance - reserved) };
 }
-export function bayState(data: Snapshot, bay: Bay) {
+export function deviceFresh(data: Snapshot, deviceId: string, now = Date.parse(data.lastTick)) {
+  const device = data.devices.find(d => d.id === deviceId);
+  return Boolean(device?.online && now - Date.parse(device.lastSeen) <= data.policy.communicationTimeoutMs);
+}
+export function bayState(data: Snapshot, bay: Bay, now = Date.parse(data.lastTick)) {
   if (!bay.enabled) return "DISABLED";
-  if (!data.stations.find(s => s.id === bay.stationId)?.online || !data.devices.find(d => d.id === bay.deviceId)?.online) return "OFFLINE";
+  if (!data.stations.find(s => s.id === bay.stationId)?.online || !deviceFresh(data,bay.deviceId,now)) return "OFFLINE";
   if (bay.fault) return "FAULT";
   if (data.sessions.some(s => s.bayId === bay.id && s.state !== "completed")) return "CHARGING";
   return bay.plugged ? "PLUGGED" : "AVAILABLE";
 }
-export function availableBays(data: Snapshot, stationId: string) { return data.bays.filter(b => b.stationId === stationId && ["AVAILABLE", "PLUGGED"].includes(bayState(data, b))); }
+export function availableBays(data: Snapshot, stationId: string, now = Date.parse(data.lastTick)) { return data.bays.filter(b => b.stationId === stationId && ["AVAILABLE", "PLUGGED"].includes(bayState(data, b, now))); }
