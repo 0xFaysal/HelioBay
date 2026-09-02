@@ -39,7 +39,8 @@ async function mutate(path: string, body?: unknown, method = "PATCH") {
 export const apiPlatform: PlatformServices = {
   snapshot: getSnapshot, refresh,
   async saveOwner(owner) {
-    const result = await apiRequest("/me", ownerSchema, { method: "PATCH", body: owner });
+    const { profile, vehicles, selectedVehicleId, savedStations, notificationsRead, preferences } = owner;
+    const result = await apiRequest("/me", ownerSchema, { method: "PATCH", body: { profile, vehicles, selectedVehicleId, savedStations, notificationsRead, preferences } });
     useDemoStore.getState().update(() => result);
   },
   stations: {

@@ -24,7 +24,9 @@ export function createApiClient({ baseUrl, token, unauthorized, fetcher = fetch,
       options.signal?.addEventListener("abort", abort, { once: true });
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const bearer = await token();
+        const bearer = await Promise.race([token(), new Promise<never>((_resolve, reject) => {
+          controller.signal.addEventListener("abort", () => reject(new Error("Token request aborted")), { once: true });
+        })]);
         controller.signal.throwIfAborted();
         const response = await fetcher(url, {
           method, signal: controller.signal, cache: "no-store",

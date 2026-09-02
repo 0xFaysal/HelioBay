@@ -88,22 +88,23 @@ export function BookingDetail(
     </div>
   );
 
-  const s = stationService.get(b.stationId)!;
+  const s = stationService.get(b.stationId);
+  if (!s) return <div className="empty-state"><h1>Station details unavailable.</h1><p>Reconnect to load this booking’s station.</p></div>;
   const session = d.sessions.find(x => x.bookingId === b.id);
   const refund = refundableAmount(b);
 
-  function start() {
+  async function start() {
     try {
-      const cs = chargingService.enter(id);
+      const cs = await chargingService.enter(id);
       router.push(`/charging/${cs.id}`);
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
 
-  function cancelBooking() {
+  async function cancelBooking() {
     try {
-      const amount = bookingService.cancel(id);
+      const amount = await bookingService.cancel(id);
       setCancel(false);
       toast.success(`Booking cancelled. ${money(amount)} simulated refund recorded.`);
     } catch (e) {
@@ -196,7 +197,7 @@ export function BookingDetail(
             <span>Simulated refund</span>
             <strong>{money(refund)}</strong>
           </div>
-          <p className="text-xs muted">At least 1 hour before the slot: advance minus ৳20 booking fee. Within 1 hour: no refund.</p>
+          <p className="text-xs muted">At least 1 hour before the slot: advance minus {money(b.fee)} booking fee and {money(b.cancellationFee ?? 0)} cancellation fee. Within 1 hour: no refund.</p>
           <Button variant="destructive" onClick={cancelBooking}>Confirm cancellation</Button>
           <Button variant="outline" onClick={() => setCancel(false)}>Keep my booking</Button>
         </DialogContent></Dialog>

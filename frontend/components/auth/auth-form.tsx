@@ -59,16 +59,14 @@ export function AuthForm(
         await authService.forgot(values.email);
         setSent(true);
       } else {
-        if (role === "admin") throw new Error(
-          "Production partner access requires backend role verification. Use the clearly labeled partner demo below."
-        );
+
 
         if (register)
           await authService.register(values.name, values.email, values.password);
         else
           await authService.login(values.email, values.password);
 
-        router.push(destination);
+        router.push(role === "admin" ? "/admin" : destination);
       }
     } catch (e) {
       setError(authError(e));
@@ -83,7 +81,7 @@ export function AuthForm(
 
     try {
       await authService.google();
-      router.push(destination);
+      router.push(role === "admin" ? "/admin" : destination);
     } catch (e) {
       setError(authError(e));
     } finally {
@@ -96,7 +94,7 @@ export function AuthForm(
   return (
     <PublicShell footer={false}><div className="auth-wrap">
         <div className="auth-photo">
-          <AssetImage src="/images/hero.webp" alt="Solar-powered charging in a peaceful green setting" fill sizes="50vw" />
+          <AssetImage loading="eager" src="/images/hero.webp" alt="Solar-powered charging in a peaceful green setting" fill sizes="50vw" />
           <div className="auth-photo-copy">
             <div className="eyebrow mb-6">A BETTER WAY FORWARD</div>
             <h2>A little sunshine.<br />A world of possibility.</h2>
@@ -153,7 +151,7 @@ export function AuthForm(
               className="w-full"
               onClick={() => {
                 authService.demo(role);
-                router.push(role === "admin" ? "/partner" : destination);
+                router.push(role === "admin" ? "/admin" : destination);
               }}>{role === "admin" ? "Continue as Demo Admin" : "Continue in Demo Mode"}</Button>
           </div>}
           <div className="text-xs text-center mt-6">{forgot ? <Link href="/auth/sign-in">← Back to sign in</Link> : register ? <>Already connected? <Link className="underline" href="/auth/sign-in">Sign in</Link></> : <>New to HelioBay? <Link className="underline" href="/auth/sign-up">Create an account</Link></>}</div>

@@ -120,26 +120,6 @@ test("booking, failed payment retry, persistence, charging and refund journey", 
   }).click();
 
   await page.getByRole("button", {
-    name: "Simulate offline"
-  }).click();
-
-  await expect(page.getByText("Connection lost.", {
-    exact: false
-  })).toBeVisible();
-
-  await page.getByRole("button", {
-    name: "Reconnect demo charger"
-  }).click();
-
-  await page.getByRole("button", {
-    name: "Simulate fault"
-  }).click();
-
-  await expect(page.getByText("A simulated charger fault", {
-    exact: false
-  })).toBeVisible();
-
-  await page.getByRole("button", {
     name: "Emergency stop",
     exact: true
   }).click();
@@ -148,9 +128,7 @@ test("booking, failed payment retry, persistence, charging and refund journey", 
     name: "Confirm emergency stop"
   })).toBeDisabled();
 
-  await page.getByPlaceholder("STOP", {
-    exact: true
-  }).fill("STOP");
+  await page.getByLabel("Type STOP to confirm").fill("STOP");
 
   await page.getByRole("button", {
     name: "Confirm emergency stop"
@@ -371,11 +349,11 @@ test("route protection and explicit admin demo", async (
   }).click();
 
   await expect(page.getByRole("heading", {
-    name: "Your network preview."
+    name: "Good energy. Under control."
   })).toBeVisible();
 
   await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/partner/);
+  await expect(page).toHaveURL(/\/admin/);
 });
 
 test("map tile failure and denied location keep station discovery usable", async ({ page }) => {

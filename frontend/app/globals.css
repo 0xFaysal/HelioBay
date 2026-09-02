@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "./admin.css";
+/* HelioBay network operations, extending the owner design system. */
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @theme inline { --color-background:var(--background);--color-foreground:var(--foreground);--font-sans:var(--font-geist-sans);--font-mono:var(--font-geist-mono);--font-heading:var(--font-geist-sans);--color-card:var(--card);--color-card-foreground:var(--foreground);--color-popover:var(--card);--color-popover-foreground:var(--foreground);--color-primary:var(--primary);--color-primary-foreground:#0b0f0d;--color-secondary:#f4f7f5;--color-secondary-foreground:#0b0f0d;--color-muted:#f4f7f5;--color-muted-foreground:#65716b;--color-accent:#eafaf0;--color-accent-foreground:#0b0f0d;--color-destructive:#dc2626;--color-border:#dce6e0;--color-input:#dce6e0;--color-ring:#00a855;--radius-sm:8px;--radius-md:10px;--radius-lg:12px;--radius-xl:16px;--radius-2xl:20px; }

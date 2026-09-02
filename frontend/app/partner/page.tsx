@@ -1,9 +1,2 @@
-import { Partner } from "@/components/owner/partner";
-
-export const metadata = {
-  title: "Station partner preview"
-};
-
-export default function Page() {
-  return <Partner />;
-}
+import { redirect } from "next/navigation";
+export default function Page() { redirect("/admin"); }

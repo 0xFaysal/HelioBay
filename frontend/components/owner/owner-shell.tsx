@@ -22,6 +22,9 @@ import {
 
 import { Brand } from "@/components/shared/brand";
 import { useAuth } from "@/components/shared/providers";
+import { ConnectionStatus } from "@/components/shared/connection-status";
+import { isDemo } from "@/lib/config";
+import { useDemoStore } from "@/store/demo-store";
 import { useOwnerData } from "@/store/demo-store";
 import { authService } from "@/lib/services/auth";
 import { accountService } from "@/lib/services/account";
@@ -72,6 +75,8 @@ export function OwnerShell(
   } = useAuth();
 
   const data = useOwnerData();
+  const apiError = useDemoStore(s => s.apiError);
+  const apiLoading = useDemoStore(s => s.apiLoading);
   const path = usePathname();
   const router = useRouter();
   const [notifications, setNotifications] = useState(false);
@@ -81,7 +86,7 @@ export function OwnerShell(
     if (!loading && !user)
       router.replace(`/auth/sign-in?next=${encodeURIComponent(path)}`);
     else if (!loading && user?.role === "admin")
-      router.replace("/partner");
+      router.replace("/admin");
   }, [user, loading, path, router]);
 
   if (loading || !user || !data || user.role !== "owner") return (
@@ -136,7 +141,7 @@ export function OwnerShell(
               aria-label="Selected vehicle"
               className="vehicle-top-select text-[11px] max-w-[195px] border rounded-lg px-3 py-2"
               value={data.selectedVehicleId}
-              onChange={e => accountService.selectVehicle(e.target.value)}>
+              onChange={e => { void accountService.selectVehicle(e.target.value).catch(e => toast.error(e.message)); }}>
               {!data.vehicles.length && <option value="">No vehicle added</option>}
               {data.vehicles.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
@@ -146,7 +151,7 @@ export function OwnerShell(
               aria-label="Notifications"
               onClick={() => {
                 setNotifications(true);
-                accountService.readNotifications();
+                void accountService.readNotifications().catch(e => toast.error(e.message));
               }}
               className="relative">
               <Bell size={18} />
@@ -159,8 +164,8 @@ export function OwnerShell(
           </div>
         </header>
         <main className="owner-content" id="main-content">
-          <div className="text-[9px] uppercase tracking-[.14em] muted mb-5 flex gap-2 items-center"><span className="status-dot" />{user.demo ? "Demo mode" : "Signed in with Firebase"}· Simulated charging & payments · Saved on this device</div>
-          {children}
+          <div className="text-[9px] uppercase tracking-[.14em] muted mb-5 flex gap-2 items-center"><span className="status-dot" />{isDemo ? "Demo mode · Simulated charging & payments · Saved on this device" : "API mode · Backend connected data"}</div>
+          <ConnectionStatus />{!isDemo && (apiError || apiLoading) ? <section className="panel empty-state"><h1>{apiLoading ? "Loading your account…" : "Account data unavailable."}</h1><p>{apiLoading ? "Connecting to the configured backend." : "Use Retry connection above. No demo records have been substituted."}</p></section> : children}
         </main>
       </div>
       <nav className="owner-bottom-nav" aria-label="Mobile owner navigation">{[nav[0], nav[1], nav[2], nav[4], nav[6]].map(n => <Link href={n.href} key={n.href} className={path.startsWith(n.href) ? "active" : ""}>

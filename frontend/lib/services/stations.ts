@@ -3,7 +3,7 @@ import { platform } from "@/lib/platform";
 import type { Station, Booking } from "@/types";
 export const stationService = platform.stations;
 export function liveStation(station: Station, bookings: Booking[], now: number): Station {
-  const occupied = new Set(bookings.filter(b => b.stationId === station.id && (b.status === "charging" || b.status === "upcoming" && Date.parse(b.start) <= now && Date.parse(b.start) + b.duration * 60000 > now)).map(b => b.bayId));
+  const occupied = new Set(bookings.filter(b => b.stationId === station.id && (!station.enabledBayIds || station.enabledBayIds.includes(b.bayId)) && (b.status === "charging" || b.status === "upcoming" && Date.parse(b.start) <= now && Date.parse(b.start) + b.duration * 60000 > now)).map(b => b.bayId));
   return { ...station, available: station.online ? Math.max(0, station.available - occupied.size) : 0 };
 }
 export function distanceKm(

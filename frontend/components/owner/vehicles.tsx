@@ -56,9 +56,9 @@ export function Vehicles() {
     setOpen(true);
   }
 
-  function save(v: z.infer<typeof schema>) {
+  async function save(v: z.infer<typeof schema>) {
     try {
-      accountService.saveVehicle({
+      await accountService.saveVehicle({
         ...v,
         id: editing?.id ?? `EV-${crypto.randomUUID().slice(0, 8)}`,
         isDefault: editing?.isDefault ?? false
@@ -101,9 +101,8 @@ export function Vehicles() {
             <Button variant="outline" onClick={() => edit(v)}><Pencil size={13} />Edit</Button>
             {!v.isDefault && <Button
               variant="outline"
-              onClick={() => {
-                accountService.defaultVehicle(v.id);
-                toast.success("Default vehicle updated.");
+              onClick={async () => {
+                try { await accountService.defaultVehicle(v.id); toast.success("Default vehicle updated."); } catch (e) { toast.error((e as Error).message); }
               }}><Star size={13} />Make default</Button>}
             <Button variant="ghost" aria-label={`Remove ${v.name}`} onClick={() => setRemove(v)}><Trash2 size={15} /></Button>
           </div>
@@ -147,9 +146,9 @@ export function Vehicles() {
           <DialogDescription>{remove?.name}will be removed. Past bookings and receipts will be retained. Vehicles with active bookings cannot be removed.</DialogDescription>
           <Button
             variant="destructive"
-            onClick={() => {
+            onClick={async () => {
               try {
-                accountService.removeVehicle(remove!.id);
+                await accountService.removeVehicle(remove!.id);
                 setRemove(undefined);
                 toast.success("Vehicle removed.");
               } catch (e) {

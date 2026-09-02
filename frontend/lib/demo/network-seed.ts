@@ -1,5 +1,5 @@
 import type { Device, NetworkData, PricingRule, Station } from "@/types";
-import { stations } from "./seed";
+import { stations } from "./seed.ts";
 
 export const defaultPricing: PricingRule = {
   pricePerKwh: 18, bookingFee: 20, cancellationFee: 0, peakMultiplier: 1,
@@ -22,7 +22,8 @@ export function createNetwork(now = new Date().toISOString(), source: Station[] 
   });
   return {
     stations: source.map(s => ({ ...s, openingHours: "07:00–22:00", maintenance: false })),
-    bays, devices, commands: [], acknowledgements: [], maintenance: [], audit: [], refunds: [],
+    bays, devices, commands: [], acknowledgements: [], maintenance: [], audit: [],
+    refunds: source.length ? [{ id: "RF-REVIEW01", paymentId: "RF-REVIEW01", bookingId: "HB-DEMO02", ownerId: "demo-owner", amount: 20, status: "pending", reason: "Demo metering reconciliation · operator review", createdAt: now }] : [],
     faults: source.filter(s => !s.online).map(s => ({
       id: `FAULT-${s.deviceId}`, stationId: s.id, deviceId: s.deviceId, severity: "warning",
       code: "OFFLINE", message: "Device offline. Inspect connection before returning to service.",

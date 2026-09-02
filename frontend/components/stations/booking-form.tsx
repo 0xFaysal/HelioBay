@@ -43,8 +43,8 @@ export function BookingForm(
   const [consent, setConsent] = useState(false);
   const [requestId, setRequestId] = useState("");
   const vehicle = data?.vehicles.find(v => v.id === (vehicleId || data.selectedVehicleId));
-  const cost = estimateCost(station, duration, applied, vehicle);
   const start = date && time ? `${date}T${time}:00+06:00` : "";
+  const cost = estimateCost(station, duration, applied, vehicle, start);
 
   function review() {
     setError("");

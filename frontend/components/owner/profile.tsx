@@ -37,13 +37,13 @@ export function Profile() {
       return;
     }
 
-    accountService.saveProfile({
+    try { await accountService.saveProfile({
       name,
       phone,
       city
     });
 
-    toast.success("Profile saved on this device.");
+    toast.success("Profile saved."); } catch (e) { toast.error((e as Error).message); }
   }
 
   async function reset() {
@@ -111,8 +111,8 @@ export function Profile() {
                 <Switch
                   id={p.key}
                   checked={d.preferences[p.key]}
-                  onCheckedChange={v => {
-                    accountService.preference(p.key, v);
+                  onCheckedChange={async v => {
+                    try { await accountService.preference(p.key, v); } catch (e) { toast.error((e as Error).message); return; }
                     toast.success("Preference updated.");
                   }} />
               </div>

@@ -1,0 +1,61 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
+import { Printer } from "lucide-react";
+import { useDemoStore } from "@/store/demo-store";
+import { platform } from "@/lib/platform";
+import { allBookings, allPayments, allSessions } from "@/lib/platform/selectors";
+import { dateTime, money, refundableAmount } from "@/lib/services/booking-rules";
+import { AdminHeading, ConfirmAction, DataGrid, Status } from "./shared";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { CommandStatusPanel } from "@/components/charging/command-status";
+import { isDemo } from "@/lib/config";
+
+function Details({ entries }: { entries: [string, string | number][] }) { return <>{entries.map(([label, value]) => <div className="data-row" key={label}><span>{label}</span><span>{value}</span></div>)}</>; }
+
+export function AdminBookings() {
+  const network = useDemoStore(s => s.network); const owners = useDemoStore(s => s.owners);
+  const [status, setStatus] = useState("all"); const [selected, setSelected] = useState<string | null>(null); const [bayId, setBayId] = useState("");
+  const bookings = allBookings({ network, owners }); const booking = bookings.find(b => b.id === selected);
+  return <>
+    <AdminHeading title="Every arrival, planned." description="Paid reservations across the network. Approvals, cancellations and bay reassignments are audited." />
+    <DataGrid name="bookings" rows={bookings.filter(b => status === "all" || b.status === status)} columns={[
+      { label: "Reference", value: b => b.id }, { label: "Owner", value: b => owners[b.ownerId]?.profile.name ?? b.ownerId },
+      { label: "Station / bay", value: b => `${network.stations.find(s => s.id === b.stationId)?.name} · ${b.bayId}` },
+      { label: "Arrival", value: b => dateTime(b.start) }, { label: "Status", value: b => b.status, render: b => <Status good={b.status === "upcoming"}>{b.status}</Status> },
+    ]} filters={<select aria-label="Booking status" value={status} onChange={e => setStatus(e.target.value)}>{["all", "upcoming", "charging", "completed", "cancelled"].map(x => <option key={x} value={x}>{x === "all" ? "All bookings" : x}</option>)}</select>} onInspect={b => { setSelected(b.id); setBayId(b.bayId); }} />
+    <Sheet open={Boolean(booking)} onOpenChange={v => { if (!v) setSelected(null); }}><SheetContent className="admin-detail-sheet"><SheetTitle>Booking {booking?.id}</SheetTitle><SheetDescription>Account-scoped reservation details, payment and bay controls.</SheetDescription>{booking && <><Details entries={[["Owner", owners[booking.ownerId]?.profile.name ?? booking.ownerId], ["Station", network.stations.find(s => s.id === booking.stationId)?.name ?? booking.stationId], ["Start", dateTime(booking.start)], ["Duration", `${booking.duration} minutes`], ["Advance paid", money(booking.advance)], ["Estimated total", money(booking.estimate)], ["Refundable now", money(refundableAmount(booking))], ["Approval", booking.approved ? "Approved" : "Awaiting review"]]} />{booking.status === "upcoming" && <><ConfirmAction label={booking.approved ? "Approved" : "Approve booking"} disabled={booking.approved} title="Approve this booking?" description="Confirm the reservation for the selected station and bay." action={() => platform.admin.updateBooking(booking.id, { approved: true })} /><label className="text-sm mt-4">Reassign bay<select className="w-full mt-2" value={bayId} onChange={e => setBayId(e.target.value)}>{network.bays.filter(b => b.stationId === booking.stationId).map(b => <option key={b.id} disabled={!b.enabled || b.blocked || b.maintenance} value={b.id}>{b.id}{!b.enabled || b.blocked || b.maintenance ? " — unavailable" : ""}</option>)}</select></label><ConfirmAction label="Reassign bay" disabled={bayId === booking.bayId} title="Move reservation to another bay?" description="The destination is checked for conflicts before the update is applied." action={() => platform.admin.updateBooking(booking.id, { bayId })} /><ConfirmAction label="Cancel booking" title="Cancel this booking?" description={`Release the bay. The refundable amount is ${money(refundableAmount(booking))}; applicable fees are retained.`} danger action={() => platform.admin.updateBooking(booking.id, { cancel: true })} /></>}<Link className="action action-outline mt-4" href={`/admin/devices?device=${network.bays.find(b => b.stationId === booking.stationId && b.id === booking.bayId)?.deviceId ?? ""}`}>Inspect assigned device</Link></>}</SheetContent></Sheet>
+  </>;
+}
+
+export function AdminSessions() {
+  const network = useDemoStore(s => s.network); const owners = useDemoStore(s => s.owners); const [status, setStatus] = useState("all"); const [selected, setSelected] = useState<string | null>(null);
+  const sessions = allSessions({ network, owners }); const session = sessions.find(s => s.id === selected); const device = network.devices.find(d => d.id === session?.deviceId);
+  const booking = session && allBookings({ network, owners }).find(b => b.id === session.bookingId);
+  return <>
+    <AdminHeading title="Energy, in real time." description="Active and completed sessions, bounded telemetry timelines and acknowledged stop controls." />
+    <DataGrid name="sessions" rows={sessions.filter(s => status === "all" || (status === "active" ? s.status !== "completed" : s.status === "completed"))} columns={[
+      { label: "Session", value: s => s.id }, { label: "Owner", value: s => owners[s.ownerId]?.profile.name ?? s.ownerId },
+      { label: "Status", value: s => s.status, render: s => <Status good={s.status === "charging"} danger={s.status === "fault"}>{s.status}</Status> },
+      { label: "Energy (kWh)", value: s => s.energy.toFixed(3) }, { label: "Minutes", value: s => (s.elapsed / 60).toFixed(1) }, { label: "Battery", value: s => `${s.battery.toFixed(0)}% estimated` },
+    ]} filters={<select aria-label="Session status" value={status} onChange={e => setStatus(e.target.value)}><option value="all">All sessions</option><option value="active">Active</option><option value="completed">Completed</option></select>} onInspect={s => setSelected(s.id)} />
+    <Sheet open={Boolean(session)} onOpenChange={v => { if (!v) setSelected(null); }}><SheetContent className="admin-detail-sheet"><SheetTitle>Session {session?.id}</SheetTitle><SheetDescription>{isDemo ? "Simulated telemetry; kWh is scaled EV-equivalent energy." : "Validated backend session data."}</SheetDescription>{session && <><Details entries={[["State", session.status], ["Booking", session.bookingId], ["Device / bay", `${session.deviceId ?? "Archived"} / ${session.bayId ?? booking?.bayId ?? "—"}`], ["Energy", `${session.energy.toFixed(3)} kWh`], ["Prototype meter", `${(session.energyWh ?? 0).toFixed(4)} Wh`], ["Elapsed", `${(session.elapsed / 60).toFixed(1)} min`], ["Bill", money(session.finalCost ?? session.energy * (booking?.unitPrice ?? 18) + (booking?.fee ?? 20))], ["Final state", session.stopReason ?? "In progress"]]} />{device && <CommandStatusPanel deviceId={device.id} />}{session.status !== "completed" && <ConfirmAction label="Stop session" title="Stop this charging session?" description="Send STOP and await acknowledgement. Completion creates a receipt and calculates any unused-advance refund." action={() => platform.charging.command(session.id, "STOP")} />}<h3 className="text-lg mt-5">Telemetry timeline</h3><div className="telemetry-timeline">{device?.timeline.length ? device.timeline.slice(-12).reverse().map(t => <div className="data-row" key={t.timestamp}><span>{dateTime(t.timestamp)}</span><span>{t.chargingPower == null ? "Sensor unavailable" : `${t.chargingPower.toFixed(2)} W`} · {t.energyWh.toFixed(4)} Wh</span></div>) : <p className="muted text-xs">No live telemetry is retained for this archived session.</p>}</div><Link className="action action-outline mt-4" href="/admin/payments">Payment & receipt records</Link></>}</SheetContent></Sheet>
+  </>;
+}
+
+export function AdminPayments({ refunds = false, initialId }: { refunds?: boolean; initialId?: string }) {
+  const network = useDemoStore(s => s.network); const owners = useDemoStore(s => s.owners); const [filter, setFilter] = useState("all"); const [selected, setSelected] = useState<string | null>(initialId ?? null);
+  const payments = allPayments({ network, owners }); const payment = payments.find(p => p.id === selected); const refund = network.refunds.find(r => r.id === selected);
+  const booking = allBookings({ network, owners }).find(b => b.id === (payment?.bookingId ?? refund?.bookingId));
+  return <>
+    <AdminHeading title={refunds ? "A fair return." : "Every payment, transparent."} description={isDemo ? "Simulation only. No wallet, bank or payment provider is charged." : "Backend payment records. Provider status is authoritative."} />
+    {refunds ? <DataGrid name="refunds" rows={network.refunds.filter(r => filter === "all" || r.status === filter)} columns={[
+      { label: "Reference", value: r => r.id }, { label: "Booking", value: r => r.bookingId }, { label: "Amount", value: r => money(r.amount) },
+      { label: "Status", value: r => r.status, render: r => <Status good={r.status === "succeeded"}>{r.status}</Status> }, { label: "Reason", value: r => r.reason },
+    ]} filters={<select aria-label="Refund status" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All refunds</option><option value="pending">Pending approval</option><option value="succeeded">Succeeded</option></select>} onInspect={r => setSelected(r.id)} /> : <DataGrid name="payments" rows={payments.filter(p => filter === "all" || p.kind === filter)} columns={[
+      { label: "Transaction", value: p => p.id }, { label: "Booking", value: p => p.bookingId }, { label: "Method", value: p => p.method }, { label: "Amount", value: p => `${p.kind === "refund" ? "−" : ""}${money(p.amount)}` }, { label: "Type", value: p => p.kind }, { label: "Date", value: p => dateTime(p.createdAt) },
+    ]} filters={<select aria-label="Transaction type" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All transactions</option><option value="payment">Payments</option><option value="refund">Refunds</option></select>} onInspect={p => setSelected(p.id)} />}
+    <Sheet open={Boolean(payment || refund)} onOpenChange={v => { if (!v) setSelected(null); }}><SheetContent className="admin-detail-sheet"><SheetTitle>{refunds ? "Refund details" : "Transaction details"}</SheetTitle><SheetDescription>{isDemo ? "Simulated financial record — not a tax invoice." : "Backend transaction record."}</SheetDescription>{(payment || refund) && <><div className="admin-receipt"><h2 className="text-2xl mt-4">heliobay</h2><p className="text-xs muted mb-5">{isDemo ? "SIMULATED RECEIPT" : "TRANSACTION RECEIPT"}</p><Details entries={[["Reference", selected ?? ""], ["Booking", booking?.id ?? "Archived booking"], ["Owner", owners[payment?.ownerId ?? refund?.ownerId ?? ""]?.profile.name ?? "Owner"], ["Station", network.stations.find(s => s.id === booking?.stationId)?.name ?? "—"], ["Description", payment?.description ?? refund?.reason ?? ""], ["Amount", money(payment?.amount ?? refund?.amount ?? 0)], ["Status", payment?.status ?? refund?.status ?? ""], ["Advance", money(booking?.advance ?? 0)], ["Recorded", dateTime(payment?.createdAt ?? refund!.createdAt)]]} /><p className="text-xs muted mt-5">{isDemo ? "No real money has moved. This record demonstrates HelioBay payment and refund accounting." : "Contact the station operator for invoice and provider settlement details."}</p></div><Button variant="outline" onClick={() => window.print()}><Printer size={15} />Print receipt</Button>{refund?.status === "pending" && <ConfirmAction label="Approve simulated refund" title="Approve this refund?" description={`Credit ${money(refund.amount)} in the shared demo payment history. Approval is recorded once.`} action={() => platform.payments.approveRefund(refund.id)} />}</>}</SheetContent></Sheet>
+  </>;
+}

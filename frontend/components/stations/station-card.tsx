@@ -44,13 +44,13 @@ export function StationCard(
           {!station.online ? "Offline" : station.available > 0 ? `${station.available} bays available` : "All bays occupied"}
         </span>
         <button
-          onClick={() => {
+          onClick={async () => {
             if (!data) {
               toast.info("Sign in to save your favorite stations.");
               return;
             }
 
-            accountService.toggleSaved(station.id);
+            try { await accountService.toggleSaved(station.id); } catch (e) { toast.error((e as Error).message); }
           }}
           aria-label={`${saved ? "Unsave" : "Save"} ${station.name}`}
           aria-pressed={!!saved}

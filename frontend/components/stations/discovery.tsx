@@ -5,6 +5,8 @@ import { Search, Map, List, LocateFixed, RotateCcw, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { stationService, distanceKm, liveStation } from "@/lib/services/stations";
 import { useClock } from "@/hooks/use-clock";
+import { ConnectionStatus } from "@/components/shared/connection-status";
+import { useDemoStore } from "@/store/demo-store";
 import { useOwnerData } from "@/store/demo-store";
 import { StationCard } from "./station-card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,8 @@ const StationMap = dynamic(() => import("./station-map"), {
 
 export function Discovery() {
   const now = useClock();
+  const network = useDemoStore(s => s.network);
+  const owners = useDemoStore(s => s.owners);
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -69,8 +73,8 @@ export function Discovery() {
     };
   }, []);
 
-  const filtered = useMemo(() => stations.map(s => ({
-    ...liveStation(s, data?.bookings ?? [], now),
+  const filtered = useMemo(() => (network.stations.length ? network.stations.map(s => stationService.get(s.id)!) : stations).map(s => ({
+    ...liveStation(s, Object.values(owners).flatMap(o => o.bookings), now),
     distance: location ? distanceKm(location, s) : s.distance
   })).filter(
     s => `${s.name} ${s.address} ${s.landmark}`.toLowerCase().includes(query.toLowerCase()) && (!available || s.available > 0 && s.online) && (!connector || connector === s.connector) && s.price <= price && s.distance <= distance && s.solar >= solar && (!saved || data?.savedStations.includes(s.id))
@@ -78,6 +82,8 @@ export function Discovery() {
     (a, b) => sort === "price" ? a.price - b.price : sort === "solar" ? b.solar - a.solar : a.distance - b.distance
   ), [
     stations,
+    network,
+    owners,
     query,
     available,
     connector,
@@ -86,7 +92,6 @@ export function Discovery() {
     solar,
     saved,
     data?.savedStations,
-    data?.bookings,
     now,
     sort,
     location
@@ -126,7 +131,7 @@ export function Discovery() {
   const selectedStation = filtered.find(s => s.id === selected);
 
   return (
-    <div className="pb-16">
+    <div className="pb-16"><ConnectionStatus />
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={17} className="absolute left-3 top-3.5 text-muted-foreground" />

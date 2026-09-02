@@ -1,13 +1,14 @@
 "use client";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { Account, NetworkData, OwnerData, PlatformSnapshot } from "@/types";
+import type { Account, OwnerData, PlatformSnapshot } from "@/types";
 import { createOwnerData } from "@/lib/demo/seed";
 import { createNetwork, emptyNetwork } from "@/lib/demo/network-seed";
+import { migrateDemo } from "@/lib/demo/migration";
 import { isDemo } from "@/lib/config";
 import { snapshotSchema } from "@/lib/platform/schemas";
 
-const useTabAuth = create<{ account: Account | null }>()(persist(() => ({ account: null }), {
+const useTabAuth = create<{ account: Account | null }>()(persist(() => ({ account: null as Account | null }), {
   name: "heliobay-tab-auth-v2", storage: createJSONStorage(() => sessionStorage), skipHydration: true,
 }));
 
@@ -49,10 +50,7 @@ export const useDemoStore = create<DemoState>()(persist(set => ({
   name: isDemo ? "heliobay-demo-v1" : "heliobay-api-cache", version: 2,
   storage: createJSONStorage(() => localStorage), skipHydration: true,
   partialize: s => isDemo ? { owners: s.owners, network: s.network } : { owners: {}, network: emptyNetwork() },
-  migrate: (value) => {
-    const old = value as { owners?: Record<string, OwnerData>; network?: NetworkData };
-    return { owners: old.owners ?? {}, network: old.network ?? createNetwork() };
-  },
+  migrate: migrateDemo,
   merge: (value, current) => {
     if (!isDemo) return current;
     const parsed = snapshotSchema.safeParse(value);
@@ -65,6 +63,7 @@ export const useDemoStore = create<DemoState>()(persist(set => ({
 export async function hydrateDemoStore() {
   await useDemoStore.persist.rehydrate();
   await useTabAuth.persist.rehydrate();
+  if (isDemo && useDemoStore.getState().network.lastTick === "1970-01-01T00:00:00.000Z") useDemoStore.setState({ network: createNetwork() });
   const account = useTabAuth.getState().account;
   useDemoStore.getState().setAccount(account?.demo && process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? account : null);
   useDemoStore.getState().setHydrated();

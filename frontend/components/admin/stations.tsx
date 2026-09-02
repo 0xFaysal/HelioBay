@@ -34,7 +34,7 @@ export function AdminStations({ stationId }: { stationId?: string }) {
   const station = stations.find(s => s.id === (stationId ?? selected));
   function add() { setEdit({ id: `station-${crypto.randomUUID().slice(0, 6)}`, name: "HelioBay ", address: "", landmark: "", lat: 23.7937, lng: 90.4066, distance: 0, price: network.pricing.pricePerKwh, solar: 85, power: 60, available: 2, bays: 2, online: true, connector: "CCS2", battery: 80, amenities: ["Wi-Fi", "Restrooms"], image: "/images/station.webp", deviceId: `ST-${crypto.randomUUID().slice(0, 5).toUpperCase()}`, openingHours: "07:00–22:00", maintenance: false }); }
   const detail = station && <>
-    <div className="relative h-44 rounded-xl overflow-hidden mb-5"><AssetImage src={station.image} alt={`${station.name} concept solar canopy`} fill sizes="600px" /></div>
+    <div className="relative h-44 rounded-xl overflow-hidden mb-5"><AssetImage loading="eager" src={station.image} alt={`${station.name} concept solar canopy`} fill sizes="600px" /></div>
     <div className="flex gap-2 flex-wrap mb-5"><Status good={station.online}>{station.online ? "Online" : "Offline"}</Status><Status>{station.available} reservable bays</Status><Status>{station.maintenance ? "Maintenance mode" : "In service"}</Status></div>
     <p className="text-sm muted flex gap-2"><MapPin size={16} />{station.address}</p>
     {[ ["Device", station.deviceId], ["Connector", `${station.connector} · ${station.power} kW`], ["Price", `৳${station.price}/kWh`], ["Opening hours", station.openingHours ?? "07:00–22:00"], ["Station battery", `${station.battery.toFixed(0)}%`], ["Amenities", station.amenities.join(" · ")] ].map(([label, value]) => <div key={label} className="data-row"><span>{label}</span><span>{value}</span></div>)}

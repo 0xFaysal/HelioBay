@@ -15,6 +15,7 @@ import {
   MapPin,
 } from "lucide-react";
 
+import { useDemoStore } from "@/store/demo-store";
 import { useOwnerData } from "@/store/demo-store";
 import { stationService } from "@/lib/services/stations";
 import { dateTime, money } from "@/lib/services/booking-rules";
@@ -29,6 +30,7 @@ const AnalyticsChart = dynamic(() => import("./analytics-chart"), {
 
 export function Dashboard() {
   const data = useOwnerData();
+  const network = useDemoStore(s => s.network);
 
   if (!data)
     return null;
@@ -90,7 +92,7 @@ export function Dashboard() {
             <CalendarDays size={17} className="muted" />
           </div>
           {upcoming ? <>
-            <div className="relative h-[100px] rounded-lg overflow-hidden mb-4"><AssetImage src="/images/station.webp" alt="Solar charging station concept" fill sizes="450px" /></div>
+            <div className="relative h-[100px] rounded-lg overflow-hidden mb-4"><AssetImage loading="eager" src="/images/station.webp" alt="Solar charging station concept" fill sizes="450px" /></div>
             <h3 className="text-lg">{stationService.get(upcoming.stationId)?.name}</h3>
             <p className="text-[11px] muted mt-2">{dateTime(upcoming.start)}</p>
             <div className="flex items-center justify-between mt-5">
@@ -155,7 +157,8 @@ export function Dashboard() {
             <h2 className="panel-title">Good energy nearby</h2>
             <Link href="/stations" aria-label="View all nearby stations"><ArrowUpRight size={16} /></Link>
           </div>
-          {["green-point", "gulshan-grove", "dhanmondi-lake"].map(id => {
+          {network.stations.slice(0, 3).map(station => {
+            const id = station.id;
             const s = stationService.get(id)!;
 
             return (
