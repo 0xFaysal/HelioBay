@@ -9,7 +9,8 @@ const hourKey = (now: number) => new Date(Math.floor(now / 3600000) * 3600000).t
 
 export function telemetryFresh(t: StationTelemetry, now: number, timeoutMs = 15000) {
   const age = now - Date.parse(t.timestamp);
-  return t.controller.status === "online" && age >= -1000 && age <= timeoutMs && now - Date.parse(t.controller.lastSeenAt) <= timeoutMs;
+  const controllerAge = now - Date.parse(t.controller.lastSeenAt);
+  return t.controller.status === "online" && age >= -1000 && age <= timeoutMs && controllerAge >= -1000 && controllerAge <= timeoutMs;
 }
 export function telemetryLabel(t: StationTelemetry, now: number, timeoutMs = 15000) {
   const source = t.telemetrySource === "digital_twin" ? "Digital Twin" : t.telemetrySource === "estimated" ? "Estimated" : "Live";
@@ -20,18 +21,27 @@ export function telemetryLabel(t: StationTelemetry, now: number, timeoutMs = 150
 function bucket(now: number): EnergyBucket {
   return { at: hourKey(now), durationMs: 0, solarMWh: 0, evMWh: 0, importMWh: 0, exportMWh: 0, importNumerator: 0, exportNumerator: 0, batterySocPct: 0, batteryKwMs: 0, source: "digital_twin" };
 }
-export function recordDispatch(record: StationEnergy, flow: Dispatch, now: number, dt: number, activeSessions: number, lastSeenAt: string, online: boolean) {
+export function recordDispatch(record: StationEnergy, flow: Dispatch, now: number, dt: number, activeSessions: number, lastSeenAt: string, online: boolean, wallMs = dt) {
   // Split wall-clock hour boundaries; simulation speed scales interval energy, not timestamps.
-  const key = hourKey(now);
-  let row = record.history.find(r => r.at === key);
-  if (!row) { row = bucket(now); record.history.push(row); }
-  row.durationMs += dt;
-  row.solarMWh += meterEnergy(flow.solarKw, dt); row.evMWh += meterEnergy(flow.evKw, dt);
-  const imported = meterEnergy(flow.importKw, dt), exported = meterEnergy(flow.exportKw, dt);
-  row.importMWh += imported; row.exportMWh += exported;
-  row.importNumerator += imported * record.policy.importTariffMinor;
-  row.exportNumerator += exported * record.policy.exportTariffMinor;
-  row.batterySocPct = flow.nextSocPct; row.batteryKwMs += flow.batteryKw * dt;
+  const start = now - wallMs;
+  let cursor = start;
+  do {
+    const end = Math.min(now, (Math.floor(cursor / 3600000) + 1) * 3600000);
+    const duration = wallMs > 0 ? dt * (end - cursor) / wallMs : 0;
+    const key = hourKey(cursor);
+    let row = record.history.find(r => r.at === key);
+    if (!row) { row = bucket(cursor); record.history.push(row); }
+    row.durationMs += Math.round(duration);
+    row.solarMWh += meterEnergy(flow.solarKw, duration); row.evMWh += meterEnergy(flow.evKw, duration);
+    const imported = meterEnergy(flow.importKw, duration), exported = meterEnergy(flow.exportKw, duration);
+    row.importMWh += imported; row.exportMWh += exported;
+    row.importNumerator += imported * record.policy.importTariffMinor;
+    row.exportNumerator += exported * record.policy.exportTariffMinor;
+    const remainingFraction = wallMs > 0 ? (now - end) / wallMs : 0;
+    row.batterySocPct = flow.nextSocPct - flow.batteryKw * dt / 3600000 / record.policy.capacityKwh * 100 * remainingFraction;
+    row.batteryKwMs += flow.batteryKw * duration;
+    cursor = end;
+  } while (cursor < now);
   record.history = record.history.filter(r => now - Date.parse(r.at) < 31 * 86400000).slice(-800);
   const today = record.history.filter(r => dayKey(Date.parse(r.at)) === dayKey(now));
   const sum = (field: "solarMWh" | "evMWh" | "importMWh" | "exportMWh" | "importNumerator" | "exportNumerator") => today.reduce((n, r) => n + r[field], 0);
@@ -51,6 +61,7 @@ export function createEnergyRecord(stationId: string, soc: number, now: number, 
   const flow = dispatchEnergy({ solarKw: 0, evDemandKw: 0, socPct: soc, durationMs: 1000, online: false, gridConnected: true, exportEnabled: true, policy });
   const record = { stationId, policy, history: [], samples: [] } as unknown as StationEnergy;
   recordDispatch(record, flow, now, 0, 0, new Date(now).toISOString(), false);
+  record.history = []; record.samples = [];
   return record;
 }
 
@@ -72,7 +83,7 @@ export function advanceStationEnergy(data: Snapshot, now: number, dt: number, de
     const online = station.online && controller.online && now - Date.parse(controller.lastSeen) <= data.policy.communicationTimeoutMs;
     const flow = dispatchEnergy({ solarKw: controller.solarW / 1000, evDemandKw: sessions.reduce((n, s) => n + (demandBySession[s.id] ?? 0), 0), socPct: controller.stationBattery, durationMs: dt, online, gridConnected: controller.gridBackup, exportEnabled: controller.gridExport, policy: record.policy });
     controller.stationBattery = flow.nextSocPct;
-    recordDispatch(record, flow, now, dt, sessions.length, online ? new Date(now).toISOString() : controller.lastSeen, online);
+    recordDispatch(record, flow, now, dt, sessions.length, online ? new Date(now).toISOString() : controller.lastSeen, online, dt / data.policy.demoSpeed);
     flows[station.id] = flow;
   }
   return flows;

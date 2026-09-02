@@ -19,9 +19,11 @@ export function dispatchEnergy(input: DispatchInput): Dispatch {
   if (!input.online || durationMs <= 0) return zero;
   const hours = durationMs / 3600000;
   const solarKw = Math.max(0, input.solarKw);
-  const auxiliaryKw = Math.min(p.auxiliaryKw, solarKw);
+  // EV demand takes solar first while charging; optional auxiliaries use remaining solar.
+  // At an idle station this naturally gives auxiliaries first priority before storage.
+  const solarToEv = Math.min(solarKw, input.evDemandKw);
+  const auxiliaryKw = Math.min(p.auxiliaryKw, solarKw - solarToEv);
   const usableSolar = solarKw - auxiliaryKw;
-  const solarToEv = Math.min(usableSolar, input.evDemandKw);
   const deficit = Math.max(0, input.evDemandKw - solarToEv);
   const dischargeKw = Math.min(deficit, p.maxDischargeKw, Math.max(0, (socPct - p.minSocPct) / 100 * p.capacityKwh / hours));
   const importKw = input.gridConnected ? Math.max(0, deficit - dischargeKw) : 0;

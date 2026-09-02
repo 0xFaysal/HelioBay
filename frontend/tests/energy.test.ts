@@ -16,6 +16,8 @@ test("idle solar charges storage, then exports only the remainder", () => {
   const dark = dispatchEnergy({ ...base, solarKw: 0 }); near(dark.exportKw, 0); near(dark.batteryKw, 0);
 });
 test("EV automatically uses solar, then battery above reserve, then grid", () => {
+  const evFirst = dispatchEnergy({ ...base, evDemandKw: 20, policy: defaultEnergyPolicy });
+  near(evFirst.evKw, 20); near(evFirst.auxiliaryKw, 0); near(evFirst.batteryKw, 0);
   const solar = dispatchEnergy({ ...base, evDemandKw: 10 }); near(solar.evKw, 10); near(solar.batteryKw, 10);
   const mixed = dispatchEnergy({ ...base, evDemandKw: 60 }); near(mixed.batteryKw, -30); near(mixed.importKw, 10);
   const reserved = dispatchEnergy({ ...base, evDemandKw: 30, socPct: 20 }); near(reserved.batteryKw, 0); near(reserved.importKw, 10);
@@ -47,8 +49,8 @@ test("money derives from exported ENERGY with operator tariff and no per-tick ro
 });
 test("historical aggregation sums energy and time-weights battery power", () => {
   const record = createEnergyRecord("test", 50, now);
-  recordDispatch(record, dispatchEnergy(base), now, 60000, 0, new Date(now).toISOString(), true);
-  recordDispatch(record, dispatchEnergy({ ...base, solarKw: 10 }), now + 3600000, 120000, 0, new Date(now).toISOString(), true);
+  recordDispatch(record, dispatchEnergy(base), now + 60000, 60000, 0, new Date(now).toISOString(), true);
+  recordDispatch(record, dispatchEnergy({ ...base, solarKw: 10 }), now + 3720000, 120000, 0, new Date(now).toISOString(), true);
   const rows = aggregateHistory(record.history, now - 1, now + 7200000, 86400000);
   assert.equal(rows.length, 1); near(rows[0].batteryKw, 40/3); near(rows[0].solarKwh, .666666);
 });
@@ -68,4 +70,17 @@ test("legacy persisted snapshots gain energy records without losing wallet or ID
 test("energy policy validates reserve and finite tariffs", () => {
   assert.equal(energyPolicySchema.safeParse({ ...defaultEnergyPolicy, minSocPct: 96 }).success, false);
   assert.equal(energyPolicySchema.safeParse({ ...defaultEnergyPolicy, exportTariffMinor: 1.5 }).success, false);
+});
+
+test("metering splits a midnight interval so yesterday is not billed as today", () => {
+  const midnight = Date.parse("2026-09-03T00:00:00+06:00");
+  const record = createEnergyRecord("test", 95, midnight - 1000, { ...base.policy, exportTariffMinor: 100 });
+  recordDispatch(record, dispatchEnergy({ ...base, solarKw: 36, socPct: 95 }), midnight + 1000, 2000, 0, new Date(midnight).toISOString(), true);
+  assert.equal(record.history.length, 2); near(record.current.grid.exportEnergyTodayKwh, .01);
+  assert.equal(record.current.finance.exportEarningsMinor, 1);
+});
+
+test("API source labels reject future controller timestamps", () => {
+  const t = createEnergyRecord("test", 50, now).current; t.controller.status = "online"; t.telemetrySource = "live";
+  t.controller.lastSeenAt = new Date(now + 60000).toISOString(); assert.equal(telemetryLabel(t, now), "Measured · Stale");
 });

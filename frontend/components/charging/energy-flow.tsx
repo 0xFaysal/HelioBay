@@ -1,16 +1,11 @@
-import { Sun, BatteryMedium, CarFront, UtilityPole } from "lucide-react";
-import { Fragment } from "react";
+import "@/app/energy.css";
+import { Sun, BatteryMedium, UtilityPole } from "lucide-react";
 
+// Public explanation, deliberately not a linear dispatch diagram.
 export function EnergyFlow() {
-  const nodes = [[Sun, "Solar"], [BatteryMedium, "Storage"], [CarFront, "Your EV"], [UtilityPole, "Grid"]] as const;
-
-  return (
-    <div className="energy-flow" aria-label="Energy flows from solar to storage, your EV, and the grid">{nodes.map(([Icon, label], i) => <Fragment key={label}>
-        {i > 0 && <div className="energy-line" aria-hidden="true" />}
-        <div className="energy-node">
-          <div><Icon size={25} strokeWidth={1.5} /></div>
-          <span>{label}</span>
-        </div>
-      </Fragment>)}</div>
-  );
+  return <div className="public-energy-benefits">{[
+    [Sun, "Solar first", "Fresh solar energy supplies charging demand as it is generated."],
+    [BatteryMedium, "Storage that supports", "Surplus solar charges storage. Stored energy supports charging when sunshine is limited."],
+    [UtilityPole, "A two-way connection", "The grid supplies any remaining demand and receives surplus after storage is charged."],
+  ].map(([Icon, label, detail]) => { const Symbol = Icon as typeof Sun; return <div key={String(label)}><Symbol size={23} aria-hidden="true" /><h3>{String(label)}</h3><p>{String(detail)}</p></div>; })}</div>;
 }

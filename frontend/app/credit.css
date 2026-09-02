@@ -6,3 +6,4 @@
 /* Preserve contrast when a dark wallet card switches to a low-credit warning. */
 .credit-hero.credit-low .muted{color:#765217}
 .credit-ledger-item small,.credit-receipt .data-row,.admin-mobile-cards .data-row{overflow-wrap:anywhere}
+@media(max-width:600px){[data-sonner-toaster]{max-width:calc(100vw - 32px)!important;right:16px!important;left:auto!important}[data-sonner-toast]{max-width:100%!important;overflow-wrap:anywhere}}
