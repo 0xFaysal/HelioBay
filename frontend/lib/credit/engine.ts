@@ -1,5 +1,6 @@
 import type { Actor, Command, Payment, Snapshot, StartInput, StopReason } from "./model.ts";
 import { affordableEnergy, energyCost, validateTopup } from "./money.ts";
+import { advanceStationEnergy } from "../energy/adapter.ts";
 import { bayState, walletView } from "./selectors.ts";
 
 export function audit(data: Snapshot, actorId: string, action: string, reference: string, reason: string, now: number) {
@@ -108,25 +109,41 @@ export function advance(input: Snapshot, now: number): Snapshot {
     else if (c.status === "failed" && c.message === "Awaiting Station Controller acknowledgement.") c.message = "Device rejected the command. Inspect and retry.";
     s?.events.push({ at: iso, message: c.message }); audit(data, "engine", `Command ${c.status}`, c.id, c.message, now);
   }
+  const demand: Record<string, number> = {};
   for (const s of data.sessions.filter(s => s.state !== "completed")) {
-    const bay = data.bays.find(b => b.id === s.bayId)!; const d = data.devices.find(d => d.id === s.deviceId)!; const station = data.stations.find(p => p.id === s.stationId)!;
+    const bay = data.bays.find(b => b.id === s.bayId)!;
+    const d = data.devices.find(d => d.id === s.deviceId)!;
+    const station = data.stations.find(p => p.id === s.stationId)!;
     if (!d.online || !station.online || now - Date.parse(d.lastSeen) > data.policy.communicationTimeoutMs) { finish(data, s.id, "DEVICE_OFFLINE", now); continue; }
     if (!bay.plugged) { finish(data, s.id, "PLUG_DISCONNECTED", now); continue; }
     if (bay.fault || !bay.enabled || data.users.find(u => u.id === s.ownerId)?.status !== "active") { finish(data, s.id, "FAULT", now); continue; }
     if (s.state !== "charging") continue;
     const vehicle = data.vehicles.find(v => v.id === s.vehicleId)!;
-    const voltage = 3 + s.battery * .012; const current = .48 * (s.battery >= 80 ? .65 : 1); const watts = voltage * current;
     const affordable = affordableEnergy(s.reservedMinor, s.tariffMinor);
     const capacity = Math.max(0, Math.floor(vehicle.capacityWh * 1000 * (s.targetBattery - s.initialBattery) / 100));
-    const increment = Math.max(0, Math.floor(watts * data.policy.modelScale * dt / 3600));
-    s.energyMWh = Math.min(s.energyMWh + increment, affordable, capacity);
+    const stationSessions = data.sessions.filter(other => other.stationId === station.id && other.state === "charging").length;
+    // A station-wide limit is shared across bays. Meter only the remaining credit/capacity budget.
+    demand[s.id] = dt > 0 ? Math.max(0, Math.min(30 * (s.battery >= 80 ? .65 : 1), station.powerKw / stationSessions, (Math.min(affordable, capacity) - s.energyMWh) * 3.6 / dt)) : 0;
+  }
+  const flows = advanceStationEnergy(data, now, dt, demand);
+  for (const s of data.sessions.filter(s => s.state === "charging")) {
+    const flow = flows[s.stationId];
+    const totalDemand = data.sessions.filter(other => other.stationId === s.stationId).reduce((n, other) => n + (demand[other.id] ?? 0), 0);
+    const kw = (demand[s.id] ?? 0) * (totalDemand > 0 ? flow.evKw / totalDemand : 0);
+    const vehicle = data.vehicles.find(v => v.id === s.vehicleId)!;
+    const affordable = affordableEnergy(s.reservedMinor, s.tariffMinor);
+    const capacity = Math.max(0, Math.floor(vehicle.capacityWh * 1000 * (s.targetBattery - s.initialBattery) / 100));
+    s.energyMWh = Math.min(s.energyMWh + Math.max(0, Math.round(kw * dt / 3.6)), affordable, capacity);
     s.costMinor = energyCost(s.energyMWh, s.tariffMinor);
-    s.elapsedMs += dt; s.battery = Math.min(s.targetBattery, s.initialBattery + s.energyMWh / (vehicle.capacityWh * 1000) * 100); vehicle.battery = s.battery; s.updatedAt = iso;
-    const source = d.stationBattery < 10 && d.gridBackup ? "GRID" : d.solarW >= watts ? "SOLAR" : "STORAGE";
-    s.points.push({ at: iso, voltage, current, powerW: watts, energyMWh: s.energyMWh, battery: s.battery, source, simulated: true }); s.points = s.points.slice(-60); s.events = s.events.slice(-100);
+    s.elapsedMs += dt; s.battery = Math.min(s.targetBattery, s.initialBattery + s.energyMWh / (vehicle.capacityWh * 1000) * 100);
+    vehicle.battery = s.battery; s.updatedAt = iso;
+    // Retain the legacy source field for API compatibility; detailed split lives in station energy.
+    const source = flow.solarKw > flow.auxiliaryKw ? "SOLAR" : flow.batteryKw < 0 ? "STORAGE" : "GRID";
+    s.points.push({ at: iso, voltage: null, current: null, powerW: kw * 1000, energyMWh: s.energyMWh, battery: s.battery, source, simulated: true });
+    s.points = s.points.slice(-60); s.events = s.events.slice(-100);
     if (s.energyMWh >= affordable) finish(data, s.id, "CREDIT_EXHAUSTED", now);
     else if (s.energyMWh >= capacity) finish(data, s.id, "BATTERY_FULL", now);
-    else if (d.stationBattery < 5 && !d.gridBackup && d.solarW < watts) { bay.fault = true; finish(data, s.id, "FAULT", now); }
+    else if (flow.evKw <= 0 && (demand[s.id] ?? 0) > 0) { data.bays.find(b => b.id === s.bayId)!.fault = true; finish(data, s.id, "FAULT", now); }
   }
   for (const d of data.devices) if (d.online) d.lastSeen = iso;
   data.commands = data.commands.slice(0, 200); data.lastTick = iso; data.revision++;

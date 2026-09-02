@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { stationEnergySchema } from "../energy/model.ts";
 
 const id = z.string().min(1).max(120);
 const integer = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -20,10 +21,11 @@ export const paymentSchema = z.object({ id, userId: id, amountMinor: minor.min(1
 export const policySchema = z.object({ maxTopupMinor: minor.min(1000), defaultTariffMinor: minor.min(1), demoSpeed: z.union([z.literal(1), z.literal(10), z.literal(60)]), modelScale: integer.min(1).max(50000), targetBattery: percent.min(50), communicationTimeoutMs: integer.min(5000).max(120000) });
 export const faultSchema = z.object({ id, stationId: id, bayId: id.optional(), deviceId: id, severity: z.enum(["warning", "critical"]), message: z.string(), status: z.enum(["open", "acknowledged", "resolved"]), at: iso, note: z.string() });
 export const auditSchema = z.object({ id, actorId: id, action: z.string(), reference: id, reason: z.string(), at: iso });
-export const snapshotSchema = z.object({ revision: integer, lastTick: iso, users: z.array(userSchema), vehicles: z.array(vehicleSchema), stations: z.array(stationSchema), bays: z.array(baySchema), devices: z.array(deviceSchema), wallets: z.array(walletSchema), ledger: z.array(ledgerSchema), payments: z.array(paymentSchema), sessions: z.array(sessionSchema), commands: z.array(commandSchema), faults: z.array(faultSchema), audit: z.array(auditSchema), policy: policySchema, previousPolicy: policySchema.nullable() });
+export const snapshotSchema = z.object({ revision: integer, lastTick: iso, energy: z.array(stationEnergySchema).default([]), users: z.array(userSchema), vehicles: z.array(vehicleSchema), stations: z.array(stationSchema), bays: z.array(baySchema), devices: z.array(deviceSchema), wallets: z.array(walletSchema), ledger: z.array(ledgerSchema), payments: z.array(paymentSchema), sessions: z.array(sessionSchema), commands: z.array(commandSchema), faults: z.array(faultSchema), audit: z.array(auditSchema), policy: policySchema, previousPolicy: policySchema.nullable() });
 export type User = z.infer<typeof userSchema>;
 // Reject simulated telemetry or impossible monetary state at the API boundary.
 export const apiSnapshotSchema = snapshotSchema.refine(data =>
+  data.energy.every(e => e.current.telemetrySource !== "digital_twin" && e.samples.every(t => t.telemetrySource !== "digital_twin") && e.history.every(h => h.source !== "digital_twin")) &&
   data.sessions.every(s => !s.points.some(p => p.simulated) && s.costMinor <= s.reservedMinor) &&
   data.wallets.every(w => data.sessions.filter(s => s.ownerId === w.userId && s.state !== "completed").reduce((sum,s) => sum + s.reservedMinor,0) <= w.balanceMinor),
   "Backend snapshot contains simulated telemetry or an invalid credit hold.");

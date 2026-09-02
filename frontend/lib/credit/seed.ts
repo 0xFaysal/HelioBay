@@ -1,6 +1,6 @@
 import type { Snapshot } from "./model.ts";
 export function seed(now = new Date().toISOString(), empty = false): Snapshot {
-  const data: Snapshot = { revision: 0, lastTick: now, users: [], vehicles: [], stations: [], bays: [], devices: [], wallets: [], ledger: [], payments: [], sessions: [], commands: [], faults: [], audit: [], policy: { maxTopupMinor: 500000, defaultTariffMinor: 1800, demoSpeed: 1, modelScale: 16000, targetBattery: 100, communicationTimeoutMs: 15000 }, previousPolicy: null };
+  const data: Snapshot = { revision: 0, lastTick: now, energy: [], users: [], vehicles: [], stations: [], bays: [], devices: [], wallets: [], ledger: [], payments: [], sessions: [], commands: [], faults: [], audit: [], policy: { maxTopupMinor: 500000, defaultTariffMinor: 1800, demoSpeed: 1, modelScale: 16000, targetBattery: 100, communicationTimeoutMs: 15000 }, previousPolicy: null };
   if (empty) return data;
   data.users = [{ id: "demo-owner", name: "Alex Morgan", email: "owner@heliobay.demo", role: "owner", status: "active", phone: "", city: "Dhaka", savedStations: ["green-point"], preferences: { charging: true, wallet: true, offers: false } }, { id: "demo-admin", name: "Station Partner", email: "admin@heliobay.demo", role: "admin", status: "active", phone: "", city: "Dhaka", savedStations: [], preferences: { charging: true, wallet: true, offers: false } }];
   data.wallets = [{ userId: "demo-owner", balanceMinor: 50000 }, { userId: "demo-admin", balanceMinor: 0 }];
@@ -16,7 +16,7 @@ export function seed(now = new Date().toISOString(), empty = false): Snapshot {
   places.forEach((p, i) => {
     const deviceId = `ST00${i + 1}`;
     data.stations.push({ id: p.id, name: p.name, address: p.address, landmark: p.landmark, lat: p.lat, lng: p.lng, deviceId, online: i !== 4, priceMinor: p.tariff, powerKw: 60, solarPercent: p.solar, image: "/images/station.webp", amenities: ["Wi-Fi", "Restrooms", "Coffee nearby"], openingHours: "07:00–22:00" });
-    data.devices.push({ id: deviceId, stationId: p.id, online: i !== 4, lastSeen: now, firmware: "heliobay-demo/3.0", stationBattery: 84, solarW: 1.8, gridBackup: true, gridExport: false, outcome: "success" });
+    data.devices.push({ id: deviceId, stationId: p.id, online: i !== 4, lastSeen: now, firmware: "heliobay-demo/3.0", stationBattery: 84, solarW: 23000, gridBackup: true, gridExport: true, outcome: "success" });
     for (let number = 1; number <= p.bays; number++) data.bays.push({ id: `${p.id}-BAY${String(number).padStart(2, "0")}`, stationId: p.id, deviceId, number, relayChannel: number, connector: "CCS2", enabled: true, plugged: false, fault: false });
   });
   return data;

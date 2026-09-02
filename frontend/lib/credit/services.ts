@@ -7,6 +7,8 @@ import { createApiClient } from "@/lib/api/client";
 import { actor, adjust, advance, audit, createPayment, finish, sendCommand, startSession } from "./engine";
 import { baySchema, deviceSchema, paymentSchema, policySchema, apiSnapshotSchema, stationSchema, userSchema, vehicleSchema, type Coordinates, type Device, type Payment, type Policy, type Snapshot, type StartInput, type Station, type Bay, type Vehicle, type User } from "./model";
 import { gatewayUrl, validateTopup } from "./money";
+import { energyPolicySchema, type EnergyPolicy } from "../energy/model";
+import { createEnergyRecord } from "../energy/adapter";
 import { distance } from "./selectors";
 
 const request = createApiClient({ baseUrl: apiBaseUrl, token: async () => firebaseConfigured ? await firebaseAuth().currentUser?.getIdToken() ?? null : null, unauthorized: () => window.dispatchEvent(new Event("heliobay:unauthorized")) });
@@ -29,6 +31,22 @@ export const creditService = {
     } catch (e) { if (!signal?.aborted && who()?.id === identity) useCreditStore.setState({ error: (e as Error).message }); throw e; }
     finally { if (who()?.id === identity) useCreditStore.setState({ loading: false }); }
   },
+  energy: {
+    async configure(stationId: string, policy: EnergyPolicy) {
+      const parsed = energyPolicySchema.parse(policy);
+      if (!isDemo) return mutation(`/admin/stations/${encoded(stationId)}/energy-policy`, parsed, "PUT");
+      return transaction(data => {
+        const user = actor(data, who(), true);
+        const station = data.stations.find(s => s.id === stationId);
+        const controller = data.devices.find(d => d.id === station?.deviceId);
+        if (!station || !controller) throw new Error("Station not found.");
+        let record = data.energy.find(e => e.stationId === stationId);
+        if (!record) { record = createEnergyRecord(stationId, controller.stationBattery, Date.now()); data.energy.push(record); }
+        record.policy = parsed;
+        audit(data, user.id, "Energy policy updated", stationId, "Battery limits and configured grid tariffs; past energy charges unchanged", Date.now());
+      });
+    },
+  },
   stations: {
     async nearest(location?: Coordinates, signal?: AbortSignal) {
       if (isDemo) return snapshot().stations.map(s => ({ ...s, distanceKm: location ? distance(location, s) : undefined })).sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
@@ -47,7 +65,7 @@ export const creditService = {
           for (const b of data.bays.filter(b => b.stationId === parsed.id)) b.deviceId = parsed.deviceId;
         }
         if (existing) Object.assign(existing, parsed); else {
-          data.stations.push(parsed); data.devices.push({ id: parsed.deviceId, stationId: parsed.id, online: true, lastSeen: new Date().toISOString(), firmware: "heliobay-demo/3.0", stationBattery: 80, solarW: 1.8, gridBackup: true, gridExport: false, outcome: "success" });
+          data.stations.push(parsed); data.devices.push({ id: parsed.deviceId, stationId: parsed.id, online: true, lastSeen: new Date().toISOString(), firmware: "heliobay-demo/3.0", stationBattery: 80, solarW: 23000, gridBackup: true, gridExport: true, outcome: "success" });
           data.bays.push({ id: `${parsed.id}-BAY01`, stationId: parsed.id, deviceId: parsed.deviceId, number: 1, relayChannel: 1, connector: "CCS2", enabled: true, plugged: false, fault: false });
         }
         if (!parsed.online) for (const s of data.sessions.filter(s => s.stationId === parsed.id)) finish(data, s.id, "DEVICE_OFFLINE", Date.now());
