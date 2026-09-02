@@ -1,3 +1,3 @@
 import Link from "next/link";
 import { Zap } from "lucide-react";
-export function Brand({ light = false }: { light?: boolean }) { return <Link href="/" aria-label="HelioBay home" className={`brand ${light ? "text-white" : ""}`}><span className="brand-mark"><Zap size={29} strokeWidth={2.7} fill="currentColor" /></span>helio<span className="font-normal -ml-2">bay</span><span className="text-[11px] self-start mt-1 ml-[-5px]">®</span></Link>; }
+export function Brand({ light = false }: { light?: boolean }) { return <Link href="/" aria-label="HelioBay home" className={`brand ${light ? "text-white" : ""}`}><span className="brand-mark"><Zap size={29} strokeWidth={2.7} fill="currentColor" /></span>helio<span className="font-normal -ml-2">bay</span></Link>; }

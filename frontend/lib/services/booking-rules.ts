@@ -22,6 +22,7 @@ export function validateBooking(station: Station, vehicle: Vehicle | undefined, 
   const time = new Date(start).getTime();
   if (!station.online) throw new Error("This station is offline. Please choose another station.");
   if (!vehicle) throw new Error("Select a vehicle to continue.");
+  if (vehicle.battery >= 100) throw new Error("Your vehicle is fully charged. Select another vehicle or update its demo battery level.");
   if (vehicle.connector !== station.connector) throw new Error("This connector is not compatible with your vehicle.");
   if (!Number.isFinite(time) || time <= now) throw new Error("Choose a future date and time.");
   if (time > now + 30 * 86400000) throw new Error("Reservations open up to 30 days ahead.");

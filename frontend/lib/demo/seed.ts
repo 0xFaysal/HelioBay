@@ -13,11 +13,11 @@ export const stations: Station[] = [
   { id: "tejgaon-hub", name: "HelioBay City Hub", address: "Tejgaon Link Road, Dhaka", landmark: "Nabisco intersection", lat: 23.7721, lng: 90.3995, distance: 3.8, price: 16, solar: 64, power: 50, available: 0, bays: 2, online: false, connector: "CCS2", battery: 45, amenities: ["Coffee", "Restrooms"], image: "/images/hero.webp", deviceId: "ST005" },
 ];
 
-export function createOwnerData(name = "Alex Morgan", seeded = true, now = new Date()): OwnerData {
+export function createOwnerData(name = "Alex Morgan", seeded = true, now = new Date(), ownerId = "sample"): OwnerData {
   const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(10, 0, 0, 0);
   const before = new Date(now); before.setDate(before.getDate() - 3); before.setHours(14, 0, 0, 0);
   const old = before.toISOString();
-  return {
+  const result: OwnerData = {
     profile: { name, phone: "+880 1712 345678", city: "Dhaka" },
     vehicles: [{ id: "ev-01", name: "My electric crossover", plate: "DHAKA METRO-GA 42-1829", connector: "CCS2", capacity: 60, battery: 64, isDefault: true }], selectedVehicleId: "ev-01",
     bookings: seeded ? [
@@ -33,4 +33,10 @@ export function createOwnerData(name = "Alex Morgan", seeded = true, now = new D
       { id: "RF-DEMO03", bookingId: "HB-DEMO03", amount: 67, method: "Nagad", kind: "refund", status: "succeeded", createdAt: old, description: "Cancellation refund" },
     ] : [], savedStations: ["green-point"], notificationsRead: false, preferences: { booking: true, charging: true, offers: false },
   };
+  const vehicleId = `ev-${ownerId}`;
+  result.vehicles = result.vehicles.map(v => ({ ...v, id: vehicleId }));
+  result.selectedVehicleId = vehicleId;
+  result.bookings = result.bookings.map(b => ({ ...b, vehicleId }));
+  result.sessions = result.sessions.map(s => ({ ...s, vehicleId }));
+  return result;
 }

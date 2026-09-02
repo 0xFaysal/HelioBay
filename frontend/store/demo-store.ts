@@ -14,7 +14,7 @@ export const useDemoStore = create<DemoState>()(persist((set) => ({
   setHydrated: () => set({ hydrated: true }),
   setAccount: (account) => set((state) => ({
     activeId: account?.id ?? null, demoAccount: account?.demo ? account : null,
-    owners: account && !state.owners[account.id] ? { ...state.owners, [account.id]: createOwnerData(account.name, account.demo) } : state.owners,
+    owners: account && !state.owners[account.id] ? { ...state.owners, [account.id]: createOwnerData(account.name, account.demo && account.role === "owner", new Date(), account.id) } : state.owners,
   })),
   update: (fn) => set((state) => state.activeId && state.owners[state.activeId] ? { owners: { ...state.owners, [state.activeId]: fn(state.owners[state.activeId]) } } : state),
 }), {

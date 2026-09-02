@@ -21,12 +21,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }).catch(() => { useDemoStore.getState().setHydrated(); toast.error("Browser storage is unavailable. Changes may not survive refresh."); });
   }, []);
   useEffect(() => {
-    if (!firebaseConfigured) return;
+    if (!firebaseConfigured || !hydrated) return;
     return onAuthStateChanged(firebaseAuth(), u => {
       const account: Account | null = u ? { id: u.uid, name: u.displayName || "EV Owner", email: u.email || "", role: "owner", demo: false } : null;
       setFirebaseUser(account); setAuthReady(true);
       if (account) useDemoStore.getState().setAccount(account);
     }, () => { setAuthReady(true); toast.error("Unable to restore sign-in. Please sign in again."); });
-  }, []);
+  }, [hydrated]);
   return <AuthContext.Provider value={{ user: demoEnabled && demoAccount ? demoAccount : firebaseUser, loading: !hydrated || !authReady }}><MotionConfig reducedMotion="user">{children}<Toaster richColors position="bottom-right" /></MotionConfig></AuthContext.Provider>;
 }
