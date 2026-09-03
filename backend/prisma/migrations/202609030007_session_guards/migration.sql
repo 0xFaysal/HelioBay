@@ -1,0 +1,10 @@
+DROP INDEX one_active_session_per_bay;
+DROP INDEX one_active_session_per_owner;
+DROP INDEX one_active_session_per_vehicle;
+CREATE UNIQUE INDEX one_active_session_per_bay ON "ChargingSession" ("bayId") WHERE "completedAt" IS NULL AND status IN ('CREATED','AWAITING_PLUG','READY','START_PENDING','CHARGING','STOP_PENDING','INTERRUPTED','PENDING','STARTING','STOPPING');
+CREATE UNIQUE INDEX one_active_session_per_owner ON "ChargingSession" ("ownerId") WHERE "completedAt" IS NULL AND status IN ('CREATED','AWAITING_PLUG','READY','START_PENDING','CHARGING','STOP_PENDING','INTERRUPTED','PENDING','STARTING','STOPPING');
+CREATE UNIQUE INDEX one_active_session_per_vehicle ON "ChargingSession" ("vehicleId") WHERE "completedAt" IS NULL AND status IN ('CREATED','AWAITING_PLUG','READY','START_PENDING','CHARGING','STOP_PENDING','INTERRUPTED','PENDING','STARTING','STOPPING');
+ALTER TABLE "ChargingSession" ADD CONSTRAINT authorized_session_cost CHECK ("reservedMinor" >= 0 AND ("startRequestHash" IS NULL OR "costMinor" <= "reservedMinor"));
+ALTER TABLE "Device" ADD CONSTRAINT device_simulation CHECK ("simulationSpeed" BETWEEN 1 AND 60 AND ("dataSource" = 'SIMULATOR' OR "simulationSpeed" = 1));
+CREATE UNIQUE INDEX open_device_bay_fault ON "Fault" ("deviceId", COALESCE("bayId", ''), code) WHERE status <> 'RESOLVED';
+CREATE TRIGGER immutable_session_event BEFORE UPDATE OR DELETE ON "SessionEvent" FOR EACH ROW EXECUTE FUNCTION heliobay_immutable_record();

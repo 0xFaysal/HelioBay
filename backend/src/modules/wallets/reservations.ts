@@ -8,7 +8,7 @@ export class CreditReservations {
     if(amountMinor<=0n) throw new ApiError(422,'INVALID_RESERVATION','Reservation must be positive');
     return this.db.$transaction(async tx=>{
       const wallet=await lockWallet(tx,userId);
-      await tx.chargingSession.findFirstOrThrow({where:{id:sessionId,ownerId:userId,status:{in:['PENDING','STARTING','CHARGING']}}});
+      await tx.chargingSession.findFirstOrThrow({where:{id:sessionId,ownerId:userId,status:{in:['CREATED','READY','START_PENDING','PENDING','STARTING','CHARGING']}}});
       const hash=fingerprint({userId,sessionId,amountMinor,operation:'reserve'});
       const existing=await tx.creditReservation.findUnique({where:{sessionId}});
       if(existing) {

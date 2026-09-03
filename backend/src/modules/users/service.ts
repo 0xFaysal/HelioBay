@@ -19,7 +19,7 @@ export class UserService {
   mutateVehicle(ownerId: string, id: string, data?: z.infer<typeof vehiclePatch>) {
     return this.db.$transaction(async tx => {
       await tx.vehicle.findFirstOrThrow({ where: { id, ownerId } });
-      if (await tx.chargingSession.count({ where: { vehicleId: id, status: { in: [...activeSessionStatuses] } } })) throw new ApiError(409, 'ACTIVE_SESSION', 'Vehicle has an active charging session');
+      if (await tx.chargingSession.count({ where: { vehicleId: id, completedAt: null, status: { in: [...activeSessionStatuses] } } })) throw new ApiError(409, 'ACTIVE_SESSION', 'Vehicle has an active charging session');
       if (!data) return tx.vehicle.delete({ where: { id, ownerId } });
       if (data.isDefault) await tx.vehicle.updateMany({ where: { ownerId }, data: { isDefault: false } });
       return tx.vehicle.update({ where: { id, ownerId }, data });

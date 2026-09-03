@@ -36,6 +36,12 @@ enum BayStatus {
   DISABLED
 }
 enum SessionStatus {
+  CREATED
+  AWAITING_PLUG
+  READY
+  START_PENDING
+  STOP_PENDING
+  INTERRUPTED
   PENDING
   STARTING
   CHARGING
@@ -88,6 +94,12 @@ enum FaultStatus {
   OPEN
   ACKNOWLEDGED
   RESOLVED
+}
+enum DataSource {
+  LIVE_HARDWARE
+  ESTIMATED
+  DIGITAL_TWIN
+  SIMULATOR
 }
 model User {
   id String @id @default(cuid())
@@ -221,6 +233,13 @@ model Device {
   mqttClientId String @unique
   credentialRef String?
   hardwareMetadata Json?
+  dataSource DataSource @default(LIVE_HARDWARE)
+  simulationSpeed Int @default(1)
+  thresholds Json?
+  lastSequence BigInt @default(-1)
+  bootId String?
+  lastTelemetry Json?
+  lastSampleAt DateTime?
   lastSeenAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -245,6 +264,11 @@ model Bay {
   status BayStatus @default(OFFLINE)
   enabled Boolean @default(true)
   maxPowerW Int
+  thresholds Json?
+  plugConnected Boolean @default(false)
+  relayOn Boolean @default(false)
+  lastTelemetryAt DateTime?
+  lastTelemetry Json?
   sessions ChargingSession[]
   commands DeviceCommand[]
   faults Fault[]
@@ -273,7 +297,19 @@ model ChargingSession {
   tariffMinorPerKwh Int
   energyMWh BigInt @default(0)
   costMinor BigInt @default(0)
-  status SessionStatus @default(PENDING)
+  status SessionStatus @default(CREATED)
+  reservedMinor BigInt @default(0)
+  maxEnergyMWh BigInt @default(0)
+  maxDurationSeconds Int @default(3600)
+  startRequestHash String?
+  startedAt DateTime?
+  lastTelemetryAt DateTime?
+  endingBalanceMinor BigInt?
+  reconciliationRequired Boolean @default(false)
+  lowCreditWarned Boolean @default(false)
+  dataSource DataSource @default(LIVE_HARDWARE)
+  receipt Json?
+  events SessionEvent[]
   requestId String
   stopReason String?
   createdAt DateTime @default(now())
@@ -298,6 +334,9 @@ model TelemetrySample {
   sessionId String?
   session ChargingSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   sequence BigInt
+  bayId String?
+  dataSource DataSource @default(LIVE_HARDWARE)
+  measurements Json?
   recordedAt DateTime
   receivedAt DateTime @default(now())
   energyMWh BigInt
@@ -320,6 +359,12 @@ model DeviceCommand {
   actorId String
   actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
   type CommandType
+  payload Json?
+  requestHash String?
+  publishedAt DateTime?
+  lastAttemptAt DateTime?
+  attempts Int @default(0)
+  failureCode String?
   status CommandStatus @default(PENDING)
   idempotencyKey String
   issuedAt DateTime @default(now())
@@ -400,4 +445,21 @@ model AuditLog {
   @@index([actorId, createdAt])
   @@index([createdAt])
   @@index([requestId])
+}
+
+model SessionEvent {
+  id String @id @default(cuid())
+  sessionId String
+  session ChargingSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  type String
+  data Json?
+  createdAt DateTime @default(now())
+  @@index([sessionId, createdAt])
+}
+model DeviceInbox {
+  id        String @id @default(cuid())
+  deviceId  String
+  payload   Json
+  createdAt DateTime @default(now())
+  @@index([createdAt])
 }

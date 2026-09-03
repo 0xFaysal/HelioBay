@@ -18,7 +18,7 @@ export class AdminService {
     return this.db.$transaction(async tx => {
       const before = await tx.user.findUniqueOrThrow({ where: { id } });
       // Safe stop orchestration belongs to the MQTT phase. Never claim a blocked charger is stopped.
-      if (data.status !== 'ACTIVE' && await tx.chargingSession.count({ where: { ownerId: id, status: { in: [...activeSessionStatuses] } } })) throw new ApiError(409, 'ACTIVE_SESSION', 'Stop active charging safely before deactivating this account');
+      if (data.status !== 'ACTIVE' && await tx.chargingSession.count({ where: { ownerId: id, completedAt: null, status: { in: [...activeSessionStatuses] } } })) throw new ApiError(409, 'ACTIVE_SESSION', 'Stop active charging safely before deactivating this account');
       const after = await tx.user.update({ where: { id }, data: { status: data.status } });
       await writeAudit(tx, { ...ctx, reason: data.reason }, 'USER_STATUS_CHANGED', 'User', id, before, after);
       return after;
@@ -50,7 +50,7 @@ export class AdminService {
       const where = { id: id! };
       if (id && resource !== 'tariffs') {
         const sessionWhere = resource === 'stations' ? { stationId: id } : resource === 'bays' ? { bayId: id } : { deviceId: id };
-        if (await tx.chargingSession.count({ where: { ...sessionWhere, status: { in: [...activeSessionStatuses] } } })) throw new ApiError(409, 'ACTIVE_SESSION', 'Hardware cannot change during active charging');
+        if (await tx.chargingSession.count({ where: { ...sessionWhere, completedAt: null, status: { in: [...activeSessionStatuses] } } })) throw new ApiError(409, 'ACTIVE_SESSION', 'Hardware cannot change during active charging');
       }
       switch (resource) {
         case 'stations': {

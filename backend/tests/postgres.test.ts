@@ -1,3 +1,4 @@
+import { applyMigration } from './helpers/database.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -19,7 +20,7 @@ describe.skipIf(!url)('PostgreSQL migrations and API integration', () => {
     if (!new URL(url!).pathname.endsWith('_test')) throw new Error('TEST_DATABASE_URL database name must end with _test');
     pool = new Pool({ connectionString: url, options: `-c search_path=${schema}` });
     await pool.query(`CREATE SCHEMA "${schema}"`);
-    for (const dir of (await readdir('prisma/migrations')).filter(n => /^\d/.test(n)).sort()) await pool.query(await readFile(`prisma/migrations/${dir}/migration.sql`, 'utf8'));
+    for (const dir of (await readdir('prisma/migrations')).filter(n => /^\d/.test(n)).sort()) await applyMigration(pool,await readFile(`prisma/migrations/${dir}/migration.sql`, 'utf8'));
     db = makeDatabase(url!, schema);
     const admin = await db.user.create({ data: { firebaseUid: 'test-admin', name: 'Admin', role: 'ADMIN', wallet: { create: {} } } }); adminId=admin.id;
     const owner = await db.user.create({ data: { firebaseUid:'test-owner',name:'Owner',wallet:{create:{}} } }); ownerId=owner.id;
@@ -77,3 +78,4 @@ describe.skipIf(!url)('PostgreSQL migrations and API integration', () => {
   });
   it('rejects negative monetary balances', async () => { await expect(db.wallet.update({where:{userId:ownerId},data:{balanceMinor:-1n}})).rejects.toThrow(); });
 });
+
