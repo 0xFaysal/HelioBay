@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: heliobay
+      POSTGRES_PASSWORD: local_dev_only
+      POSTGRES_DB: heliobay
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - heliobay_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heliobay -d heliobay"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  heliobay_pg:
+

@@ -1,0 +1,363 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+}
+datasource db {
+  provider = "postgresql"
+}
+enum Role {
+  EV_OWNER
+  ADMIN
+}
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  DISABLED
+}
+enum StationStatus {
+  ONLINE
+  OFFLINE
+  MAINTENANCE
+}
+enum DeviceStatus {
+  ONLINE
+  OFFLINE
+  FAULT
+  DISABLED
+}
+enum BayStatus {
+  AVAILABLE
+  PLUGGED
+  STARTING
+  CHARGING
+  STOPPING
+  FAULT
+  OFFLINE
+  DISABLED
+}
+enum SessionStatus {
+  PENDING
+  STARTING
+  CHARGING
+  STOPPING
+  COMPLETED
+  FAILED
+}
+enum PaymentStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  CANCELLED
+}
+enum CommandStatus {
+  PENDING
+  ACKNOWLEDGED
+  FAILED
+  TIMED_OUT
+}
+enum CommandType {
+  START
+  STOP
+  EMERGENCY_STOP
+  TEST
+  RESTART
+}
+enum ReservationStatus {
+  HELD
+  SETTLED
+  RELEASED
+}
+enum LedgerKind {
+  TOP_UP
+  CHARGING_DEBIT
+  ADJUSTMENT
+  REVERSAL
+  DEMO_CREDIT
+}
+enum FaultStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+model User {
+  id String @id @default(cuid())
+  firebaseUid String @unique
+  email String?
+  name String
+  phone String?
+  city String?
+  role Role @default(EV_OWNER)
+  status UserStatus @default(ACTIVE)
+  isDemo Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  vehicles Vehicle[]
+  wallet Wallet?
+  sessions ChargingSession[]
+  payments PaymentTransaction[]
+  auditLogs AuditLog[]
+  commands DeviceCommand[]
+  @@index([email])
+  @@index([status, createdAt])
+}
+model Vehicle {
+  id String @id @default(cuid())
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  name String
+  plate String
+  connectorType String
+  capacityWh Int
+  isDefault Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions ChargingSession[]
+  @@unique([ownerId, plate])
+  @@index([ownerId, createdAt])
+}
+model Wallet {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  balanceMinor BigInt @default(0)
+  currency String @default("BDT")
+  version Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ledger WalletLedger[]
+  reservations CreditReservation[]
+}
+model WalletLedger {
+  id String @id @default(cuid())
+  walletId String
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  kind LedgerKind
+  amountMinor BigInt
+  balanceAfterMinor BigInt
+  reference String @unique
+  reason String?
+  isDemo Boolean @default(false)
+  paymentId String? @unique
+  payment PaymentTransaction? @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  sessionId String? @unique
+  session ChargingSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  @@index([walletId, createdAt])
+}
+model Tariff {
+  id String @id @default(cuid())
+  name String
+  priceMinorPerKwh Int
+  currency String @default("BDT")
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  stations Station[]
+  sessions ChargingSession[]
+}
+model Station {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  address String
+  latitude Decimal @db.Decimal(9,6)
+  longitude Decimal @db.Decimal(9,6)
+  status StationStatus @default(OFFLINE)
+  isOpen Boolean @default(false)
+  openingHours String?
+  solarCapable Boolean @default(false)
+  batteryCapable Boolean @default(false)
+  tariffId String
+  tariff Tariff @relation(fields: [tariffId], references: [id], onDelete: Restrict)
+  primaryDeviceId String? @unique
+  primaryDevice Device? @relation("PrimaryDevice", fields: [primaryDeviceId], references: [id], onDelete: Restrict)
+  devices Device[] @relation("StationDevices")
+  bays Bay[]
+  sessions ChargingSession[]
+  isDemo Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([latitude, longitude])
+  @@index([status])
+  @@index([tariffId])
+}
+model Device {
+  id String @id @default(cuid())
+  publicId String @unique
+  stationId String
+  station Station @relation("StationDevices", fields: [stationId], references: [id], onDelete: Restrict)
+  primaryFor Station? @relation("PrimaryDevice")
+  status DeviceStatus @default(OFFLINE)
+  firmwareVersion String?
+  mqttClientId String @unique
+  credentialRef String?
+  hardwareMetadata Json?
+  lastSeenAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bays Bay[]
+  sessions ChargingSession[]
+  telemetry TelemetrySample[]
+  commands DeviceCommand[]
+  faults Fault[]
+  @@unique([id, stationId])
+  @@index([stationId, status])
+}
+model Bay {
+  id String @id @default(cuid())
+  code String @unique
+  stationId String
+  station Station @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  deviceId String
+  device Device @relation(fields: [deviceId, stationId], references: [id, stationId], onDelete: Restrict)
+  number Int
+  connectorType String
+  relayChannel Int
+  status BayStatus @default(OFFLINE)
+  enabled Boolean @default(true)
+  maxPowerW Int
+  sessions ChargingSession[]
+  commands DeviceCommand[]
+  faults Fault[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([stationId, number])
+  @@unique([stationId, relayChannel])
+  @@unique([id, stationId, deviceId])
+  @@index([stationId, status])
+  @@index([deviceId, stationId])
+}
+model ChargingSession {
+  id String @id @default(cuid())
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  vehicleId String
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  stationId String
+  station Station @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  bayId String
+  bay Bay @relation(fields: [bayId, stationId, deviceId], references: [id, stationId, deviceId], onDelete: Restrict)
+  deviceId String
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  tariffId String
+  tariff Tariff @relation(fields: [tariffId], references: [id], onDelete: Restrict)
+  tariffMinorPerKwh Int
+  energyMWh BigInt @default(0)
+  costMinor BigInt @default(0)
+  status SessionStatus @default(PENDING)
+  requestId String
+  stopReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  completedAt DateTime?
+  telemetry TelemetrySample[]
+  commands DeviceCommand[]
+  reservation CreditReservation?
+  ledger WalletLedger?
+  @@unique([ownerId, requestId])
+  @@index([ownerId, createdAt])
+  @@index([bayId, stationId, deviceId])
+  @@index([deviceId])
+  @@index([stationId])
+  @@index([vehicleId])
+  @@index([tariffId])
+}
+model TelemetrySample {
+  id String @id @default(cuid())
+  deviceId String
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  sessionId String?
+  session ChargingSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  sequence BigInt
+  recordedAt DateTime
+  receivedAt DateTime @default(now())
+  energyMWh BigInt
+  powerW Int?
+  voltageMv Int?
+  currentMa Int?
+  source String
+  simulated Boolean @default(false)
+  @@unique([deviceId, sequence])
+  @@index([sessionId, recordedAt])
+}
+model DeviceCommand {
+  id String @id @default(cuid())
+  deviceId String
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  bayId String?
+  bay Bay? @relation(fields: [bayId], references: [id], onDelete: Restrict)
+  sessionId String?
+  session ChargingSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  actorId String
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  type CommandType
+  status CommandStatus @default(PENDING)
+  idempotencyKey String
+  issuedAt DateTime @default(now())
+  expiresAt DateTime
+  acknowledgedAt DateTime?
+  @@unique([actorId, idempotencyKey])
+  @@index([deviceId, status])
+  @@index([sessionId])
+  @@index([bayId])
+}
+model PaymentTransaction {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  amountMinor BigInt
+  currency String @default("BDT")
+  status PaymentStatus @default(PENDING)
+  providerReference String? @unique
+  idempotencyKey String
+  isDemo Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  verifiedAt DateTime?
+  ledger WalletLedger?
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+}
+model CreditReservation {
+  id String @id @default(cuid())
+  walletId String
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  sessionId String @unique
+  session ChargingSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  amountMinor BigInt
+  status ReservationStatus @default(HELD)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([walletId, status])
+}
+model Fault {
+  id String @id @default(cuid())
+  deviceId String
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  bayId String?
+  bay Bay? @relation(fields: [bayId], references: [id], onDelete: Restrict)
+  code String
+  message String
+  status FaultStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+  @@index([deviceId, status])
+  @@index([bayId])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action String
+  targetType String
+  targetId String
+  before Json?
+  after Json?
+  reason String?
+  requestId String
+  createdAt DateTime @default(now())
+  @@index([targetType, targetId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@index([requestId])
+}
