@@ -10,7 +10,7 @@ export class AdminWalletService {
   constructor(private db:Database) {}
   wallet(userId:string) { return new WalletService(this.db).get(userId); }
   ledger(filter:z.infer<typeof financialFilters>) {
-    return this.db.walletLedger.findMany({where:{...(filter.userId?{wallet:{userId:filter.userId}}:{}),...(filter.environment?{isSandbox:filter.environment==='sandbox'}:{})},...pageArgs(filter),orderBy:[{createdAt:'desc'},{id:'desc'}]});
+    return this.db.walletLedger.findMany({where:{...(filter.userId?{wallet:{userId:filter.userId}}:{}),...(filter.environment?{isSandbox:filter.environment==='sandbox'}:{})},...pageArgs(filter),orderBy:[{createdAt:'desc'},{id:'desc'}],include:{wallet:{select:{userId:true}}}});
   }
   async payments(filter:z.infer<typeof financialFilters>) {
     const rows=await this.db.paymentTransaction.findMany({where:{userId:filter.userId,...(filter.environment?{isSandbox:filter.environment==='sandbox'}:{})},...pageArgs(filter),orderBy:[{createdAt:'desc'},{id:'desc'}]});

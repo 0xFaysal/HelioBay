@@ -108,6 +108,8 @@ model User {
   name String
   phone String?
   city String?
+  preferences Json @default("{\"charging\":true,\"wallet\":true,\"offers\":false}")
+  savedStations String[] @default([])
   role Role @default(EV_OWNER)
   status UserStatus @default(ACTIVE)
   isDemo Boolean @default(false)
@@ -131,6 +133,7 @@ model Vehicle {
   plate String
   connectorType String
   capacityWh Int
+  estimatedSocPct Int @default(50)
   isDefault Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

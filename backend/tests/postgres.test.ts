@@ -76,6 +76,15 @@ describe.skipIf(!url)('PostgreSQL migrations and API integration', () => {
   it('makes audit rows immutable', async () => {
     const row=await db.auditLog.findFirstOrThrow(); await expect(db.auditLog.delete({where:{id:row.id}})).rejects.toThrow();
   });
+  it('persists profile preferences and estimated vehicle SOC without accepting role escalation',async()=>{
+    const res=await request(app).patch('/api/v1/me').auth('test-owner',{type:'bearer'}).send({preferences:{charging:false,wallet:true,offers:false},savedStations:[stationId]});
+    expect(res.status).toBe(200);expect(res.body.data.preferences.charging).toBe(false);
+    expect((await request(app).patch('/api/v1/me').auth('test-owner',{type:'bearer'}).send({role:'ADMIN'})).status).toBe(400);
+    const v=await request(app).post('/api/v1/me/vehicles').auth('test-owner',{type:'bearer'}).send({name:'My EV',plate:'SOC-TEST',capacityWh:60000,connectorType:'CCS2',estimatedSocPct:72});
+    expect(v.status).toBe(201);expect(v.body.data.estimatedSocPct).toBe(72);
+    expect((await request(app).patch(`/api/v1/me/vehicles/${v.body.data.id}`).auth('test-owner',{type:'bearer'}).send({estimatedSocPct:101})).status).toBe(400);
+    expect((await request(app).get('/api/v1/me/payments').auth('test-owner',{type:'bearer'})).body.data).toEqual([]);
+  });
   it('rejects negative monetary balances', async () => { await expect(db.wallet.update({where:{userId:ownerId},data:{balanceMinor:-1n}})).rejects.toThrow(); });
 });
 

@@ -10,5 +10,5 @@ export class WalletService {
       return { ...wallet, heldMinor: held._sum.amountMinor ?? 0n, availableMinor: wallet.balanceMinor - (held._sum.amountMinor ?? 0n) };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
-  ledger(userId: string, p: { page: number; limit: number }) { return this.db.walletLedger.findMany({ where: { wallet: { userId } }, ...pageArgs(p), orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }); }
+  ledger(userId: string, p: { page: number; limit: number }) { return this.db.walletLedger.findMany({ where: { wallet: { userId } }, ...pageArgs(p), orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],include:{wallet:{select:{userId:true}}} }); }
 }

@@ -5,6 +5,8 @@ export function distance(a: Coordinates, b: Coordinates) {
   return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
 }
 export function walletView(data: Snapshot, id: string) {
+  const authoritative = data.wallets.find(w => w.userId === id);
+  if (authoritative?.availableMinor !== undefined && authoritative.heldMinor !== undefined) return {balanceMinor:authoritative.balanceMinor,reservedMinor:authoritative.heldMinor,availableMinor:authoritative.availableMinor};
   const balance = data.wallets.find(w => w.userId === id)?.balanceMinor ?? 0;
   const sessions = data.sessions.filter(s => s.ownerId === id && s.state !== "completed");
   const reserved = sessions.reduce((sum, s) => sum + s.reservedMinor, 0);
@@ -16,6 +18,7 @@ export function deviceFresh(data: Snapshot, deviceId: string, now = Date.parse(d
   return Boolean(device?.online && now - Date.parse(device.lastSeen) <= data.policy.communicationTimeoutMs);
 }
 export function bayState(data: Snapshot, bay: Bay, now = Date.parse(data.lastTick)) {
+  if (bay.reportedState) return deviceFresh(data,bay.deviceId,now) ? bay.reportedState : "OFFLINE";
   if (!bay.enabled) return "DISABLED";
   if (!data.stations.find(s => s.id === bay.stationId)?.online || !deviceFresh(data,bay.deviceId,now)) return "OFFLINE";
   if (bay.fault) return "FAULT";

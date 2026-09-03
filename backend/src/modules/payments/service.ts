@@ -9,7 +9,7 @@ import { creditsToMinor, topupInput, safeGatewayUrl } from './validation.js';
 export function safePayment(payment: PaymentTransaction) {
   return { transactionId:payment.id,status:payment.status==='VERIFIED'?'PAID':payment.status,expiresAt:payment.expiresAt,
     GatewayPageURL:payment.status==='PENDING' && payment.expiresAt>new Date() ? payment.gatewayPageUrl : null,
-    amountMinor:payment.amountMinor,currency:payment.currency,isSandbox:payment.isSandbox };
+    amountMinor:payment.amountMinor,currency:payment.currency,isSandbox:payment.isSandbox,userId:payment.userId,createdAt:payment.createdAt,verifiedAt:payment.verifiedAt,providerReference:payment.providerReference };
 }
 export class PaymentService {
   constructor(readonly db: Database, readonly gateway: PaymentGateway | null, readonly config: PaymentConfig | null) {}

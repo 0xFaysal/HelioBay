@@ -8,10 +8,12 @@ import { ApiError } from '../../shared/errors/api-error.js';
 import { ok } from '../../shared/http.js';
 import { id, pagination, pageArgs } from '../../shared/validation/common.js';
 import { fingerprint, idempotencyKey } from '../wallets/ledger.js';
+import { sessionInclude } from '../sessions/service.js';
 const confirmation = z.object({ reason: z.string().trim().min(8).max(500), confirmed: z.literal(true) });
 const json = (v: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(v, (_k, x) => typeof x === 'bigint' ? x.toString() : x));
 export function iotAdminRoutes(engine: ChargingEngine) {
     const r = Router(), db = engine.db;
+    r.get('/charging-sessions/:sessionId',async(req,res)=>ok(res,await db.chargingSession.findUniqueOrThrow({where:{id:id.parse(req.params.sessionId)},include:sessionInclude})));
     // Serialize each administrator's idempotent mutations and retain their result in the immutable audit log.
     const mutation = async (actorId: string, key: string, action: string, targetId: string, input: unknown, requestId: string, work: (tx: Prisma.TransactionClient) => Promise<unknown>) => db.$transaction(async (tx) => {
         const body = confirmation.passthrough().parse(input), hash = fingerprint({ action, targetId, input });
@@ -30,7 +32,7 @@ export function iotAdminRoutes(engine: ChargingEngine) {
         await tx.auditLog.create({ data: { actorId, action, targetType: 'IoTOperation', targetId, reason: body.reason, requestId: `iot:${key}`, after: json({ hash, result, requestId }) } });
         return result;
     });
-    r.get('/charging-sessions', async (req, res) => { const p = pagination.parse(req.query); ok(res, await db.chargingSession.findMany({ where: { completedAt: null }, ...pageArgs(p), orderBy: { createdAt: 'desc' }, include: { reservation: true } }), 200, p); });
+    r.get('/charging-sessions', async (req, res) => { const p = pagination.extend({status:z.enum(['all','active','completed']).default('all')}).parse(req.query); ok(res, await db.chargingSession.findMany({ where: p.status==='all'?{}:{completedAt:p.status==='active'?null:{not:null}}, ...pageArgs(p), orderBy: [{createdAt:'desc'},{id:'desc'}], include: sessionInclude }), 200, p); });
     r.get('/charging-sessions/:sessionId/reconciliation', async (req, res) => ok(res, await db.chargingSession.findUniqueOrThrow({ where: { id: id.parse(req.params.sessionId) }, include: { reservation: true, commands: { orderBy: { issuedAt: 'desc' }, take: 50 }, events: { orderBy: { createdAt: 'desc' }, take: 100 } } })));
     r.post('/charging-sessions/start', async (req, res) => { const b = confirmation.extend({ userId: id, data: startInput }).strict().parse(req.body); ok(res, await engine.start(b.userId, b.data, idempotencyKey.parse(req.headers['idempotency-key']), res.locals.requestId, { actorId: req.user!.id, reason: b.reason }), 202); });
     for (const action of ['stop', 'reconcile'] as const)

@@ -5,6 +5,7 @@ import { profilePatch, vehicleInput, vehiclePatch } from './validation.js';
 import type { UserService } from './service.js';
 import type { WalletService } from '../wallets/service.js';
 import type { SessionService } from '../sessions/service.js';
+import { safePayment } from '../payments/service.js';
 export function userRoutes(users: UserService, wallets: WalletService, sessions: SessionService) {
   const r = Router();
   r.get('/', async (req, res) => ok(res, await users.get(req.user!.id)));
@@ -16,5 +17,6 @@ export function userRoutes(users: UserService, wallets: WalletService, sessions:
   r.get('/wallet', async (req, res) => ok(res, await wallets.get(req.user!.id)));
   r.get('/wallet/ledger', async (req, res) => { const p = pagination.parse(req.query); ok(res, await wallets.ledger(req.user!.id, p), 200, p); });
   r.get('/charging-sessions', async (req, res) => { const p = pagination.parse(req.query); ok(res, await sessions.list(req.user!.id, p), 200, p); });
+  r.get('/payments', async (req, res) => {const p=pagination.parse(req.query);ok(res,(await users.payments(req.user!.id,p)).map(safePayment),200,p);});
   return r;
 }

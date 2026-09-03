@@ -1,7 +1,7 @@
 import { Prisma } from '../../generated/prisma/client.js';
 import type { Database } from '../../shared/database/client.js';
 import { pageArgs } from '../../shared/validation/common.js';
-export const stationSelect = { id: true, code: true, name: true, address: true, latitude: true, longitude: true, status: true, isOpen: true, openingHours: true, solarCapable: true, batteryCapable: true, tariff: { select: { id: true, name: true, priceMinorPerKwh: true, currency: true } }, primaryDevice: { select: { id: true, publicId: true, dataSource: true, status: true } }, createdAt: true, updatedAt: true, _count: { select: { bays: true } }, bays: { where: { enabled: true, status: 'AVAILABLE' }, select: { id: true } } } satisfies Prisma.StationSelect;
+export const stationSelect = { id: true, code: true, name: true, address: true, latitude: true, longitude: true, status: true, isOpen: true, openingHours: true, solarCapable: true, batteryCapable: true, tariff: { select: { id: true, name: true, priceMinorPerKwh: true, currency: true } }, primaryDevice: { select: { id: true, publicId: true, dataSource: true, status: true, lastSeenAt: true, firmwareVersion: true } }, createdAt: true, updatedAt: true, _count: { select: { bays: true } }, bays: { where: { enabled: true, status: 'AVAILABLE' }, select: { id: true } } } satisfies Prisma.StationSelect;
 export const baySelect = { id: true, code: true, stationId: true, deviceId: true, number: true, connectorType: true, relayChannel: true, status: true, enabled: true, maxPowerW: true, plugConnected: true, relayOn: true, lastTelemetryAt: true, device: { select: { dataSource: true } } } satisfies Prisma.BaySelect;
 export class StationRepository {
   constructor(private db: Database) {}

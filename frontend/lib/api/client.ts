@@ -7,9 +7,9 @@ export class ApiError extends Error {
 }
 export interface ApiClientOptions {
   baseUrl: string; token: () => Promise<string | null>; unauthorized: () => void;
-  fetcher?: typeof fetch; timeoutMs?: number;
+  fetcher?: typeof fetch; timeoutMs?: number; envelope?: boolean;
 }
-export function createApiClient({ baseUrl, token, unauthorized, fetcher = fetch, timeoutMs = 8000 }: ApiClientOptions) {
+export function createApiClient({ baseUrl, token, unauthorized, fetcher = fetch, timeoutMs = 8000, envelope = false }: ApiClientOptions) {
   return async function request<T>(path: string, schema: z.ZodType<T>, options: { method?: string; body?: unknown; signal?: AbortSignal; idempotencyKey?: string } = {}): Promise<T> {
     if (!baseUrl) throw new ApiError("Backend URL is not configured. Set NEXT_PUBLIC_API_BASE_URL and retry.", 0, "CONFIGURATION");
     let url: URL;
@@ -43,9 +43,13 @@ export function createApiClient({ baseUrl, token, unauthorized, fetcher = fetch,
             429: "Too many requests. Wait a moment before trying again.",
             500: "The backend could not complete this request. Your browser has not assumed success.",
           };
-          throw new ApiError(messages[response.status] ?? `Backend request failed (${response.status}). Please retry.`, response.status, "HTTP_ERROR");
+          const detail = json && typeof json === "object" && "error" in json ? json.error : null;
+          const code = detail && typeof detail === "object" && "code" in detail && typeof detail.code === "string" ? detail.code : "HTTP_ERROR";
+          const message = response.status < 500 && detail && typeof detail === "object" && "message" in detail && typeof detail.message === "string" ? detail.message : messages[response.status];
+          throw new ApiError(message ?? `Backend request failed (${response.status}). Please retry.`, response.status, code);
         }
-        const parsed = schema.safeParse(json);
+        const payload = envelope && json && typeof json === "object" && "data" in json ? json.data : envelope ? undefined : json;
+        const parsed = schema.safeParse(payload);
         if (!parsed.success) throw new ApiError("Backend data failed validation. No unverified values were applied.", response.status, "INVALID_RESPONSE");
         return parsed.data;
       } catch (error) {

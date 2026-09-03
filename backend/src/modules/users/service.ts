@@ -8,6 +8,7 @@ import { pageArgs } from '../../shared/validation/common.js';
 export class UserService {
   constructor(private db: Database) {}
   get(id: string) { return this.db.user.findUniqueOrThrow({ where: { id } }); }
+  payments(userId:string,p:{page:number;limit:number}) { return this.db.paymentTransaction.findMany({where:{userId},...pageArgs(p),orderBy:[{createdAt:'desc'},{id:'desc'}]}); }
   patch(id: string, data: z.infer<typeof profilePatch>) { return this.db.user.update({ where: { id }, data }); }
   vehicles(ownerId: string, p: { page: number; limit: number }) { return this.db.vehicle.findMany({ where: { ownerId }, ...pageArgs(p), orderBy: { id: 'asc' } }); }
   createVehicle(ownerId: string, data: z.infer<typeof vehicleInput>) {

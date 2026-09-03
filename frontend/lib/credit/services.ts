@@ -1,32 +1,34 @@
 "use client";
 import { z } from "zod";
 import { useCreditStore, transaction } from "@/store/credit-store";
-import { isDemo, apiBaseUrl } from "@/lib/config";
-import { firebaseAuth, firebaseConfigured } from "@/lib/firebase/client";
-import { createApiClient } from "@/lib/api/client";
+import { isDemo } from "@/lib/config";
+import { backend } from "@/lib/api/backend";
+import { mapPayment, resourcePayment, resourceSession, mapSession, mapCommand, resourceWallet } from "@/lib/api/resources";
 import { actor, adjust, advance, audit, createPayment, finish, sendCommand, startSession } from "./engine";
-import { baySchema, deviceSchema, paymentSchema, policySchema, apiSnapshotSchema, stationSchema, userSchema, vehicleSchema, type Coordinates, type Device, type Payment, type Policy, type Snapshot, type StartInput, type Station, type Bay, type Vehicle, type User } from "./model";
+import { baySchema, deviceSchema, policySchema, stationSchema, userSchema, vehicleSchema, type Coordinates, type Device, type Payment, type Policy, type Snapshot, type StartInput, type Station, type Bay, type Vehicle, type User } from "./model";
 import { gatewayUrl, validateTopup } from "./money";
 import { energyPolicySchema, type EnergyPolicy } from "../energy/model";
 import { createEnergyRecord } from "../energy/adapter";
 import { distance } from "./selectors";
 
-const request = createApiClient({ baseUrl: apiBaseUrl, token: async () => firebaseConfigured ? await firebaseAuth().currentUser?.getIdToken() ?? null : null, unauthorized: () => window.dispatchEvent(new Event("heliobay:unauthorized")) });
+const request = backend.request;
+let refreshSequence = 0;
 const who = () => useCreditStore.getState().account;
 const snapshot = () => useCreditStore.getState().data;
 const encoded = encodeURIComponent;
 async function mutation(path: string, body: unknown, method = "POST", key = crypto.randomUUID()) {
   const identity = who()?.id;
-  const data = await request(path, apiSnapshotSchema, { method, body, idempotencyKey: key });
+  await request(path, z.unknown(), { method, body, idempotencyKey: key });
   if (who()?.id !== identity) throw new Error("The signed-in account changed. Refresh before continuing.");
-  useCreditStore.setState(s => data.revision >= s.data.revision ? {data} : {}); return data;
+  await creditService.refresh(); return snapshot();
 }
 export const creditService = {
   async refresh(signal?: AbortSignal) {
     if (isDemo) { await useCreditStore.persist.rehydrate(); return; }
-    const identity = who()?.id; useCreditStore.setState({ loading: true, error: "" });
+    const identity = who()?.id; const sequence = ++refreshSequence;
+    useCreditStore.setState({ loading: snapshot().users.length === 0 && Boolean(identity) });
     try {
-      if (identity) { const data = await request("/platform/snapshot", apiSnapshotSchema, { signal }); if (who()?.id === identity) useCreditStore.setState(s => data.revision >= s.data.revision ? {data} : {}); }
+      if (identity) { const data = await backend.load(who()!.role, signal); if (who()?.id === identity && sequence === refreshSequence) useCreditStore.setState({data:{...data,revision:sequence},error:""}); }
       else await creditService.stations.nearest(undefined, signal);
     } catch (e) { if (!signal?.aborted && who()?.id === identity) useCreditStore.setState({ error: (e as Error).message }); throw e; }
     finally { if (who()?.id === identity) useCreditStore.setState({ loading: false }); }
@@ -50,7 +52,7 @@ export const creditService = {
   stations: {
     async nearest(location?: Coordinates, signal?: AbortSignal) {
       if (isDemo) return snapshot().stations.map(s => ({ ...s, distanceKm: location ? distance(location, s) : undefined })).sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
-      const result = await request(`/stations${location ? `?lat=${location.lat}&lng=${location.lng}&sort=distance` : ""}`, z.object({ stations: z.array(stationSchema), bays: z.array(baySchema), devices: z.array(deviceSchema), policy: policySchema }), { signal });
+      const result = await backend.directory(signal, location);
       useCreditStore.setState(s => ({ data: { ...s.data, ...result } })); return result.stations;
     },
     async save(station: Station) {
@@ -93,15 +95,27 @@ export const creditService = {
     },
   },
   charging: {
+    async sync(id:string,signal?:AbortSignal) {
+      if(isDemo)return;
+      const identity=who()?.id;if(!identity)return;
+      const raw=await request(`${who()?.role==="admin"?"/admin":""}/charging-sessions/${encoded(id)}`,resourceSession,{signal});
+      const session=mapSession(raw);
+      const wallet=session.state==="completed" ? await request(who()?.role==="admin"?`/admin/users/${encoded(raw.ownerId)}/wallet`:"/me/wallet",resourceWallet,{signal}):null;
+      if(who()?.id!==identity)return;
+      useCreditStore.setState(s=>({data:{...s.data,lastTick:new Date().toISOString(),sessions:[session,...s.data.sessions.filter(p=>p.id!==id)],commands:[...raw.commands.map(mapCommand),...s.data.commands.filter(c=>c.sessionId!==id)],wallets:wallet?[wallet,...s.data.wallets.filter(w=>w.userId!==wallet.userId)]:s.data.wallets}}));
+    },
     async start(input: StartInput) {
       if (isDemo) return transaction(data => startSession(data, who(), input, Date.now()));
-      const data = await mutation("/charging-sessions/start", input, "POST", input.requestId); const s = data.sessions.find(s => s.commandId && s.state === "pending" && s.bayId === input.bayId); if (!s) throw new Error("Backend did not return a pending charging session."); return s;
+      const result = await request("/charging-sessions/start",z.object({id:z.string()}),{method:"POST",body:{stationId:input.stationId,bayId:input.bayId,vehicleId:input.vehicleId},idempotencyKey:input.requestId}); await creditService.refresh(); return result;
     },
     async stop(id: string, emergency = false) { const s = snapshot().sessions.find(s => s.id === id); if (!s) throw new Error("Session not found."); return creditService.devices.command(s.deviceId, emergency ? "EMERGENCY_STOP" : "STOP", id); },
   },
   devices: {
     async command(deviceId: string, command: "STOP" | "EMERGENCY_STOP" | "TEST" | "RESTART", sessionId?: string) {
-      if (!isDemo) return mutation(`/devices/${encoded(deviceId)}/commands`, { command, sessionId });
+      if (!isDemo) {
+        if (sessionId) return mutation(who()?.role === "admin" ? `/admin/charging-sessions/${encoded(sessionId)}/stop` : `/charging-sessions/${encoded(sessionId)}/stop`,who()?.role === "admin" ? {confirmed:true,reason:"Operator confirmed safe charging stop"} : {emergency:command === "EMERGENCY_STOP"});
+        return mutation(`/admin/devices/${encoded(deviceId)}/commands`,{type:command,confirmed:true,reason:"Operator confirmed controller maintenance"});
+      }
       return transaction(data => sendCommand(data, who(), deviceId, command, sessionId, Date.now(), crypto.randomUUID()));
     },
     async configure(id: string, patch: Partial<Device>) {
@@ -115,25 +129,28 @@ export const creditService = {
     async topup(amountMinor: number, requestId: string) {
       validateTopup(amountMinor, snapshot().policy.maxTopupMinor);
       if (isDemo) { const payment = await transaction(data => createPayment(data, who(), amountMinor, requestId, Date.now())); return { paymentId: payment.id, GatewayPageURL: `/wallet/sandbox/${payment.id}` }; }
-      const result = await request("/wallet/top-ups", z.object({ paymentId: z.string(), GatewayPageURL: z.string() }), { method: "POST", body: { amountMinor, currency: "BDT" }, idempotencyKey: requestId }); return { ...result, GatewayPageURL: gatewayUrl(result.GatewayPageURL) };
+      if (amountMinor % 100 !== 0) throw new Error("Choose a whole number of Credits for SSLCOMMERZ.");
+      const result = await request("/wallet/top-ups",z.object({transactionId:z.string(),GatewayPageURL:z.string().nullable(),status:z.string()}),{method:"POST",body:{credits:amountMinor/100},idempotencyKey:requestId});
+      if (!result.GatewayPageURL) throw new Error(`Payment ${result.transactionId} is ${result.status.toLowerCase()}. Check payment history before creating another top-up.`);
+      return {paymentId:result.transactionId,GatewayPageURL:gatewayUrl(result.GatewayPageURL)};
     },
     async payment(id: string, signal?: AbortSignal): Promise<Payment> {
       if (isDemo) return transaction(data => { Object.assign(data, advance(data, Date.now())); const user = actor(data, who()); const p = data.payments.find(p => p.id === id && (p.userId === user.id || user.role === "admin")); if (!p) throw new Error("Payment reference not found for this account."); return p; });
-      const payment = await request(`/wallet/payments/${encoded(id)}`, paymentSchema, { signal }); if (payment.status === "verified") await creditService.refresh(signal); return payment;
+      const payment=mapPayment(await request(`/wallet/top-ups/${encoded(id)}`,resourcePayment,{signal})); await creditService.refresh(signal); return payment;
     },
     async submitDemo(id: string, outcome: "success" | "failure" | "cancel" | "pending") {
       if (!isDemo) throw new Error("Only the backend can process payment callbacks.");
       return transaction(data => { const user = actor(data, who()); const p = data.payments.find(p => p.id === id && p.userId === user.id); if (!p) throw new Error("Payment not found."); if (p.status !== "pending" || p.submittedAt) return; p.submittedAt = new Date().toISOString(); p.demoOutcome = outcome; });
     },
-    async adjust(userId: string, amountMinor: number, reason: string, requestId: string, kind: "adjustment" | "reversal" = "adjustment") { if (!isDemo) return mutation(`/admin/users/${encoded(userId)}/wallet-adjustments`, { amountMinor, reason, kind }, "POST", requestId); return transaction(data => adjust(data, who(), userId, amountMinor, reason, Date.now(), requestId, kind)); },
+    async adjust(userId: string, amountMinor: number, reason: string, requestId: string, kind: "adjustment" | "reversal" = "adjustment") { if (!isDemo) return mutation(`/admin/users/${encoded(userId)}/wallet/adjustments`, { amountMinor:Math.abs(amountMinor).toString(), reason, kind:amountMinor<0?"ADMIN_DEBIT":"ADMIN_CREDIT" }, "POST", requestId); return transaction(data => adjust(data, who(), userId, amountMinor, reason, Date.now(), requestId, kind)); },
   },
   users: {
     async update(patch: Partial<User>) { if (!isDemo) return mutation("/me", patch, "PATCH"); return transaction(data => { const user = actor(data, who()); const { name, phone, city, preferences, savedStations } = patch; Object.assign(user, userSchema.parse({ ...user, ...Object.fromEntries(Object.entries({ name, phone, city, preferences, savedStations }).filter(([, v]) => v !== undefined)) })); }); },
-    async status(id: string, status: User["status"], reason: string) { if (!isDemo) return mutation(`/admin/users/${encoded(id)}`, { status, reason }, "PATCH"); return transaction(data => { const admin = actor(data, who(), true); if (reason.trim().length < 8) throw new Error("A meaningful reason is required."); const user = data.users.find(u => u.id === id); if (!user || user.role === "admin") throw new Error("Administrator accounts cannot be blocked here."); user.status = status; if (status === "blocked") for (const s of data.sessions.filter(s => s.ownerId === id)) finish(data, s.id, "FAULT", Date.now()); audit(data, admin.id, `User ${status}`, id, reason, Date.now()); }); },
+    async status(id: string, status: User["status"], reason: string) { if (!isDemo) return mutation(`/admin/users/${encoded(id)}`, { status:status==="active"?"ACTIVE":"BLOCKED", reason }, "PATCH"); return transaction(data => { const admin = actor(data, who(), true); if (reason.trim().length < 8) throw new Error("A meaningful reason is required."); const user = data.users.find(u => u.id === id); if (!user || user.role === "admin") throw new Error("Administrator accounts cannot be blocked here."); user.status = status; if (status === "blocked") for (const s of data.sessions.filter(s => s.ownerId === id)) finish(data, s.id, "FAULT", Date.now()); audit(data, admin.id, `User ${status}`, id, reason, Date.now()); }); },
   },
   vehicles: {
-    async save(input: Vehicle) { const parsed = vehicleSchema.parse(input); if (!isDemo) return mutation(`/vehicles/${encoded(parsed.id)}`, parsed, "PUT"); return transaction(data => { const user = actor(data, who()); if (parsed.ownerId !== user.id) throw new Error("Vehicle owner mismatch."); if (data.sessions.some(s => s.vehicleId === parsed.id && s.state !== "completed")) throw new Error("Stop charging before editing this vehicle."); if (data.vehicles.some(v => v.ownerId === user.id && v.id !== parsed.id && v.plate.toLowerCase() === parsed.plate.toLowerCase())) throw new Error("This plate already exists."); if (parsed.isDefault) for (const v of data.vehicles.filter(v => v.ownerId === user.id)) v.isDefault = false; const found = data.vehicles.find(v => v.id === parsed.id); if (found) Object.assign(found, parsed); else data.vehicles.push(parsed); }); },
-    async remove(id: string) { if (!isDemo) return mutation(`/vehicles/${encoded(id)}`, {}, "DELETE"); return transaction(data => { const user = actor(data, who()); if (!data.vehicles.some(v => v.id === id && v.ownerId === user.id)) throw new Error("Vehicle not found."); if (data.sessions.some(s => s.vehicleId === id && s.state !== "completed")) throw new Error("Stop charging before removing this vehicle."); data.vehicles = data.vehicles.filter(v => v.id !== id); const remaining = data.vehicles.filter(v => v.ownerId === user.id); if (!remaining.some(v => v.isDefault) && remaining[0]) remaining[0].isDefault = true; }); },
+    async save(input: Vehicle) { const parsed = vehicleSchema.parse(input); if (!isDemo) { const exists=snapshot().vehicles.some(v=>v.id===parsed.id);return mutation(`/me/vehicles${exists?`/${encoded(parsed.id)}`:""}`,{name:parsed.name,plate:parsed.plate,capacityWh:parsed.capacityWh,connectorType:parsed.connector==="Type 2"?"TYPE_2":parsed.connector,estimatedSocPct:Math.round(parsed.battery),isDefault:parsed.isDefault},exists?"PATCH":"POST"); } return transaction(data => { const user = actor(data, who()); if (parsed.ownerId !== user.id) throw new Error("Vehicle owner mismatch."); if (data.sessions.some(s => s.vehicleId === parsed.id && s.state !== "completed")) throw new Error("Stop charging before editing this vehicle."); if (data.vehicles.some(v => v.ownerId === user.id && v.id !== parsed.id && v.plate.toLowerCase() === parsed.plate.toLowerCase())) throw new Error("This plate already exists."); if (parsed.isDefault) for (const v of data.vehicles.filter(v => v.ownerId === user.id)) v.isDefault = false; const found = data.vehicles.find(v => v.id === parsed.id); if (found) Object.assign(found, parsed); else data.vehicles.push(parsed); }); },
+    async remove(id: string) { if (!isDemo) return mutation(`/me/vehicles/${encoded(id)}`, undefined, "DELETE"); return transaction(data => { const user = actor(data, who()); if (!data.vehicles.some(v => v.id === id && v.ownerId === user.id)) throw new Error("Vehicle not found."); if (data.sessions.some(s => s.vehicleId === id && s.state !== "completed")) throw new Error("Stop charging before removing this vehicle."); data.vehicles = data.vehicles.filter(v => v.id !== id); const remaining = data.vehicles.filter(v => v.ownerId === user.id); if (!remaining.some(v => v.isDefault) && remaining[0]) remaining[0].isDefault = true; }); },
   },
   admin: {
     async policy(input: Policy, rollback = false) { const policy = policySchema.parse(input); if (!isDemo) return mutation("/admin/tariffs", { ...policy, rollback }, "PATCH"); return transaction(data => { const user = actor(data, who(), true); const previous = data.policy; data.policy = rollback ? data.previousPolicy ?? previous : policy; data.previousPolicy = previous; for (const s of data.stations) s.priceMinor = data.policy.defaultTariffMinor; audit(data, user.id, "Tariff policy changed", "POLICY", "Applies to new sessions; active session tariffs stay fixed", Date.now()); }); },
