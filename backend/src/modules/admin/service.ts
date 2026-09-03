@@ -16,8 +16,9 @@ export class AdminService {
     const data = userStatusInput.parse(input);
     if (id === ctx.actorId && data.status !== 'ACTIVE') throw new ApiError(422, 'SELF_DEACTIVATION', 'Administrators cannot deactivate themselves');
     return this.db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id=${id} FOR UPDATE`;
       const before = await tx.user.findUniqueOrThrow({ where: { id } });
-      // Safe stop orchestration belongs to the MQTT phase. Never claim a blocked charger is stopped.
+      // An operator must stop and reconcile physical charging before account deactivation.
       if (data.status !== 'ACTIVE' && await tx.chargingSession.count({ where: { ownerId: id, completedAt: null, status: { in: [...activeSessionStatuses] } } })) throw new ApiError(409, 'ACTIVE_SESSION', 'Stop active charging safely before deactivating this account');
       const after = await tx.user.update({ where: { id }, data: { status: data.status } });
       await writeAudit(tx, { ...ctx, reason: data.reason }, 'USER_STATUS_CHANGED', 'User', id, before, after);
@@ -94,5 +95,6 @@ export class AdminService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 }
+
 
 

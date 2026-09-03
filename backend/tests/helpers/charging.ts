@@ -9,7 +9,7 @@ export const deviceKey='test-only-device-signing-key-32-characters';
 export const telemetry=()=>telemetrySchema.parse({kind:'telemetry',bootId:'boot',sequence:'2',at:new Date().toISOString(),dataSource:'SIMULATOR',bayId:'BAY01',sessionId:null,online:true,plugConnected:true,relayOn:false,batterySenseAvailable:true,vehicleBatteryMv:48000,vehicleBatteryPercent:50,batteryPercentageEstimated:true,solarVoltageMv:50000,solarCurrentMa:2000,solarPowerW:100,chargingVoltageMv:48000,chargingCurrentMa:0,chargingPowerW:0,energyMWh:'0',stationBatteryPercent:80,source:'SOLAR',faultCodes:[],final:false});
 export async function chargingFixture(db:Database,credit=1000,publisher:CommandPublisher={ready:()=>true,publish:async()=>{}}) {
  const suffix=crypto.randomUUID();
- const owner=await db.user.create({data:{firebaseUid:`owner-${suffix}`,name:'Owner',wallet:{create:{}}}}),admin=await db.user.create({data:{firebaseUid:`admin-${suffix}`,name:'Admin',role:'ADMIN',wallet:{create:{}}}});
+ const owner=await db.user.create({data:{firebaseUid:`owner-${suffix}`,name:'Owner',isDemo:true,wallet:{create:{}}}}),admin=await db.user.create({data:{firebaseUid:`admin-${suffix}`,name:'Admin',role:'ADMIN',wallet:{create:{}}}});
  const vehicle=await db.vehicle.create({data:{ownerId:owner.id,name:'EV',plate:suffix,capacityWh:10000,connectorType:'TYPE_2'}});
  const tariff=await db.tariff.create({data:{name:'Test',priceMinorPerKwh:1000}});
  const station=await db.station.create({data:{code:`ST-${suffix}`,name:'Test',address:'Dhaka',latitude:23,longitude:90,tariffId:tariff.id,status:'ONLINE',isOpen:true}});
@@ -23,4 +23,5 @@ export async function chargingFixture(db:Database,credit=1000,publisher:CommandP
  const ack=async(sessionId:string,accepted=true)=>{const c=await db.deviceCommand.findFirstOrThrow({where:{sessionId,type:'START'}});await engine.acknowledge(device.id,{kind:'ack',bootId:'boot',sequence:'3',at:new Date().toISOString(),dataSource:'SIMULATOR',commandId:c.id,sessionId,accepted,relayOn:accepted,energyMWh:'0'});};
  return {owner,admin,vehicle,station,device,bay,engine,config,bus,input,start,ack};
 }
+
 

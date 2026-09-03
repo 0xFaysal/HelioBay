@@ -30,7 +30,7 @@ describe('hierarchy rules', () => {
 });
 describe('admin user management', () => {
   function setup(active = 0) {
-    const tx = { user: { findUniqueOrThrow: vi.fn().mockResolvedValue({id:'u1',status:'ACTIVE'}), update: vi.fn().mockResolvedValue({id:'u1',status:'BLOCKED'}) }, chargingSession: { count:vi.fn().mockResolvedValue(active) }, auditLog: {create:vi.fn().mockResolvedValue({})} };
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([]), user: { findUniqueOrThrow: vi.fn().mockResolvedValue({id:'u1',status:'ACTIVE'}), update: vi.fn().mockResolvedValue({id:'u1',status:'BLOCKED'}) }, chargingSession: { count:vi.fn().mockResolvedValue(active) }, auditLog: {create:vi.fn().mockResolvedValue({})} };
     const db = { $transaction: (fn: (t: typeof tx) => unknown) => fn(tx) };
     return { tx, service: new AdminService(db as unknown as Database) };
   }
@@ -53,3 +53,4 @@ it('admin PATCH schemas preserve omitted defaults', async () => {
   expect(bayPatch.parse({ maxPowerW: 7200 })).toEqual({ maxPowerW: 7200 });
   expect(tariffPatch.parse({ name: 'Renamed' })).toEqual({ name: 'Renamed' });
 });
+
