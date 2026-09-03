@@ -58,13 +58,23 @@ These are unsigned **payloads**, not complete MQTT envelopes. Replace timestamps
   "chargingPowerW": 1000,
   "energyMWh": "277778",
   "stationBatteryPercent": 80,
+  "stationBatteryPowerW": -500,
+  "stationEvEnergyMWh": "277778",
+  "solarEnergyMWh": "500000",
+  "gridImportPowerW": 0,
+  "gridExportPowerW": 0,
+  "gridImportEnergyMWh": "0",
+  "gridExportEnergyMWh": "0",
+  "auxiliaryPowerW": 500,
   "source": "SOLAR",
   "faultCodes": [],
   "final": false
 }
 ```
 
-Voltage uses mV; current mA; power W; energy mWh (`1 kWh = 1,000,000 mWh`). Battery percentages are explicitly estimated, and may be null when unavailable. Source mode is SOLAR, STORAGE or GRID. Data provenance is LIVE_HARDWARE, ESTIMATED, DIGITAL_TWIN or SIMULATOR. Estimated/digital-twin sources cannot authorize billing sessions. Simulator charging requires explicit development enablement and a demo account. Public station/bay responses and session receipts expose provenance without exposing session-private measurements to public rooms.
+Voltage uses mV; current mA; power W; energy mWh (`1 kWh = 1,000,000 mWh`). Station battery power is positive while charging and negative while discharging. Grid import and export power cannot both be positive in one packet. The station-level cumulative solar, EV, import and export counters let the backend persist energy intervals without integrating UI samples; when an optional counter is absent, the backend conservatively integrates the reported power over the accepted interval. Import/export tariffs are snapshotted onto each stored interval.
+
+Battery percentages are explicitly estimated, and may be null when unavailable. Source mode is SOLAR, STORAGE or GRID. Data provenance is LIVE_HARDWARE, ESTIMATED, DIGITAL_TWIN or SIMULATOR. Estimated/digital-twin sources cannot authorize billing sessions. Simulator charging requires explicit development enablement and a demo account. Public station/bay responses and session receipts expose provenance without exposing session-private measurements to public rooms.
 
 All measurements must be nonnegative integers. The schema bounds voltage at 1,000,000 mV, current at 2,000,000 mA, and power at 1,000,000 W; tighter device/bay safety limits apply during charging. Cumulative session energy cannot decrease or grow beyond the configured power/time plausibility envelope. Schema-invalid packets are rejected; valid but electrically unsafe readings trigger a safety stop. Firmware must independently trip on invalid sensors and electrical hazards even if backend validation rejects a packet.
 

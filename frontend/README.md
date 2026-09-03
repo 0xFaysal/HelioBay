@@ -99,7 +99,7 @@ Reusable earlier components, legacy rules and tests remain in Git, but are not i
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Optional public Firebase setting |
 | `NEXT_PUBLIC_SITE_URL` | Canonical website origin |
 
-Enable Email/Password and Google providers in Firebase. Authorize localhost and your deployment domain. Admin access uses the Firebase custom claim `role: "admin"`, set only by a trusted backend. The SDK initializes once, manages credentials and attaches fresh ID tokens to REST requests. Client route protection is UX, **not backend authorization**.
+Enable Email/Password and Google providers in Firebase. Authorize localhost and your deployment domain. Admin access uses the local PostgreSQL user role returned by `/api/v1/me`; Firebase custom claims never grant admin access. The SDK initializes once, manages credentials and attaches fresh ID tokens to REST requests. Client route protection is UX, **not backend authorization**.
 
 Google sign-in is popup-free: **Continue with Google** uses a full-page redirect. On HTTPS the client automatically uses the actual website hostname as its Firebase auth domain, with a same-origin auth helper proxy. Firebase must authorize that hostname, and Google must allow `https://HOST/__/auth/handler`. See [Google sign-in on Vercel](docs/FIREBASE-VERCEL.md) for these required external settings and testing instructions. Existing Firebase keys remain unchanged.
 
@@ -114,6 +114,7 @@ Use APP_MODE=api with Firebase and both backend URLs for integration. Rebuild af
 | `lib/credit/engine.ts` | Pure deterministic commands, metering and settlement |
 | `lib/credit/seed.ts` | Explicit demo fixtures; empty API initial state |
 | `lib/credit/selectors.ts` | Derived wallet views, bay state and Haversine |
+| `lib/api/resources.ts` | Typed resource join for backend users, stations/bays/controllers, wallets, payments, sessions, notifications and energy |
 | `lib/credit/services.ts` | Users, wallet/payments, stations, bays, devices, charging and Admin contracts; demo/API adapters |
 | `store/credit-store.ts` | Validated, hydration-safe cache and demo persistence |
 | `components/credit/runtime.tsx` | One shared demo loop or authenticated backend realtime lifecycle |
@@ -126,7 +127,7 @@ Use APP_MODE=api with Firebase and both backend URLs for integration. Rebuild af
 
 See [the current backend contract](docs/API-CONTRACT.md) for payloads, units, gateway callbacks and authoritative safety requirements.
 
-**Website → backend → Station Controller**. The browser never talks directly to charging hardware. Stable `deviceId`, `devices` and `relayChannel` API fields remain for compatibility but are not exposed as hardware architecture. API errors do not activate the demo adapter. Data is schema-validated before applying; account changes clear API cache. WebSocket authentication is sent in its first message. Unsupported/corrupt payloads are rejected; stale data is visibly marked. A timed-out command means delivery unknown, not “charger stopped.”
+**Website → backend → Station Controller**. The browser never talks directly to charging hardware. API mode consumes the backend's versioned resource endpoints; there is no synthetic `/platform/snapshot` dependency. Stable `deviceId`, `devices` and `relayChannel` API fields remain for compatibility but are not exposed as hardware architecture. API errors do not activate the demo adapter. Data is schema-validated before applying; account changes clear API cache. WebSocket authentication is sent in its first message. Unsupported/corrupt payloads are rejected; stale data is visibly marked. A timed-out command means delivery unknown, not “charger stopped.”
 
 ## Demo persistence and fidelity
 
@@ -147,8 +148,8 @@ Open **Admin → Stations → a station** for the dispatch diagram, current KPIs
 - Battery power is **positive for charging**, negative for discharging. Grid import and export cannot both be active in a normalized interval. Unsupported surplus is explicitly curtailed; unavailable supply reduces delivery.
 - Use **Energy policy** to configure capacity, reserve/max SOC, charge/discharge limits, auxiliary demand and import/export tariffs. Rates start unconfigured (zero); no government tariff is assumed. Grid tariffs do not change owner charging prices.
 - Energy is integrated into integer milli-Wh. Financial estimates accumulate energy × the tariff in effect, then convert to minor units. Rate changes never recalculate old intervals.
-- Last 60 samples support the **Live time window**. Hourly records are retained for 31 days (maximum 800 buckets per station). Last 24 hours, 7 days, 30 days and custom Dhaka-date ranges aggregate energy sums, time-weighted battery power and ending SOC. CSV is available under **Interval records & CSV export**.
-- Demo history accumulates while the browser is running; it does not invent 30 days of past measurements. Missing real telemetry displays unavailable, not simulated success.
+- API mode stores accepted station intervals in PostgreSQL and returns hourly history; the Digital Twin retains its rolling browser samples. Last 24 hours, 7 days, 30 days and custom Dhaka-date ranges aggregate energy sums, time-weighted battery power and ending SOC. CSV is available under **Interval records & CSV export**.
+- Demo history accumulates while the browser is running; it does not invent 30 days of past measurements. API mode never falls back to simulated energy when an endpoint fails.
 - Existing v3 wallet, vehicle and session data is preserved. Missing energy records are initialized lazily. Old small-scale solar inputs are migrated once; stable IDs are untouched.
 
 ## Station map and receipts
@@ -165,11 +166,25 @@ Set `TEST_BASE_URL` to your running dev/production server. Screenshots, traces a
 
 For isolated API failure testing, start another dev process with `HELIOBAY_TEST_API=true`, `NEXT_PUBLIC_APP_MODE=api`, empty backend URLs and port 3002. The old DEMO_MODE flag may deliberately be true to test that it cannot unlock demo login. Run `tests/e2e/api-mode.spec.ts` with `TEST_APP_MODE=api` and `TEST_BASE_URL=http://localhost:3002`. The isolated build uses `.next-api`.
 
-## What needs real systems
+## Full-stack browser verification
 
-- Token-verified, role/owner-scoped backend and transactional wallet/session database.
-- Backend SSLCOMMERZ Sandbox session creation, signed/provider-validated notifications, amount/currency matching and idempotent credit posting.
-- Authenticated MQTT bridge, durable command IDs/ACKs, calibrated telemetry, device watchdogs and physical safety interlocks.
-- Real location directory/geocoding, production notification delivery, durable audit/retention and compliant invoices/policies.
+The isolated test starts a real Express/Prisma backend, dedicated PostgreSQL schema, MQTT gateway, simulator and Next.js app. It signs in through a browser Firebase REST fixture, then verifies owner charging/ACK/metering/settlement/notification, SSLCOMMERZ adapter settlement, wallet credit and admin energy history.
 
-The existing backend folder is preserved, not replaced by a fake server. Original generated images remain optimized under `public/images`; see [asset provenance](docs/ASSETS.md).
+```powershell
+cd ..\backend
+node node_modules/esbuild/bin/esbuild tests/fullstack-server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/fullstack-test-server.mjs
+cd ..\frontend
+$env:TEST_FULL_STACK='true'
+$env:TEST_BASE_URL='http://127.0.0.1:3008'
+node node_modules/@playwright/test/cli.js test tests/e2e/full-stack.spec.ts
+```
+
+## What still needs real systems
+
+- Account-owned Firebase/Google authorized-domain and redirect-URI configuration for the deployed hostname.
+- Live SSLCOMMERZ merchant credentials, publicly reachable callbacks and provider-side refund initiation.
+- Production PostgreSQL operations/backups and shared rate limiting before horizontal API scaling.
+- TLS MQTT identities, calibrated meters, commissioned controller firmware and independent physical safety interlocks.
+- Production notification delivery, legal/compliant invoices and certified environmental factors.
+
+Original generated images remain optimized under `public/images`; see [asset provenance](docs/ASSETS.md).

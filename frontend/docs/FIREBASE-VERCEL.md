@@ -64,11 +64,17 @@ Generated Playwright traces are excluded from lint because they contain bundled 
 
 ## Deployment access limitation
 
-The Vercel connector returned **403 Forbidden** for the existing helio-bay project during this patch, and no signed-in browser or live production hostname was provided. No Firebase/Google allowlists or Vercel account settings were changed. The code is ready for the external setup above; successful live Google login must still be verified.
+The production error screenshot confirms Google's rejected request is exactly:
 
-A read-only check of the configured Firebase project's public settings returned only localhost, heliobay.firebaseapp.com and heliobay.web.app as authorized domains. No Vercel/custom website hostname was authorized at verification time. Adding the actual production hostname in Firebase and its exact callback URI in Google is required, not optional.
+```text
+redirect_uri=https://heliobay.vercel.app/__/auth/handler
+```
 
-Patch checks passed: 54 unit tests, 4 Google SDK browser fixture tests (including browser Back recovery), the public/owner/admin browser smoke test, full lint, TypeScript and the production build. Real Google OAuth and Vercel deployment readiness are separate, still-unverified checks.
+The application code already uses that popup-free same-origin callback. A Google Cloud Console session was opened during verification, but the available in-app browser is not signed in; changing OAuth client settings requires the project owner's Google login. No credentials, OAuth keys or allowlists were changed automatically.
+
+The external acceptance step is therefore precise: add `heliobay.vercel.app` to Firebase Authentication authorized domains and add `https://heliobay.vercel.app/__/auth/handler` to the Firebase-linked Web OAuth client's authorized redirect URIs, then redeploy and test. Until the account owner completes both allowlists, Google will continue to return `redirect_uri_mismatch`; no frontend retry or popup workaround can override Google's server-side rejection.
+
+Patch checks passed: 61 frontend unit tests, the real resource-adapter full-stack browser journey, full lint, TypeScript and production builds. Real Google OAuth on the deployed domain remains an external, still-unverified acceptance check.
 
 ## References
 

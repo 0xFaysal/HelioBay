@@ -42,7 +42,7 @@ $env:TEST_DATABASE_URL='postgresql://heliobay:local_dev_only@localhost:5433/heli
 npm test
 ```
 
-See [API reference](docs/API.md), [verification results](docs/VERIFICATION.md), and [.env.example](.env.example) for configuration. Prepaid wallets, audited adjustments and SSLCOMMERZ Sandbox initiation/validation/IPN are implemented. See [Sandbox setup and manual testing](docs/SSLCOMMERZ-SANDBOX.md). Signed MQTT device communication, reservation-backed charging, authenticated WebSocket events, admin controls and the development simulator are implemented. See [MQTT protocol](docs/MQTT-PROTOCOL.md), [charging REST/WebSocket API](docs/CHARGING-API.md), and [simulator setup](docs/SIMULATOR.md). The frontend snapshot adapter remains separate work. This versioned resource API does not yet satisfy the frontend's older whole-platform Snapshot transport contract.
+See [API reference](docs/API.md), [verification results](docs/VERIFICATION.md), and [.env.example](.env.example) for configuration. Prepaid wallets, exact ledger reversals, SSLCOMMERZ Sandbox initiation/validation/IPN, owner notifications and persisted station-energy history are implemented. Signed MQTT device communication, reservation-backed charging, authenticated WebSocket events, admin controls and the development Digital Twin are implemented. See [Sandbox setup](docs/SSLCOMMERZ-SANDBOX.md), [MQTT protocol](docs/MQTT-PROTOCOL.md), [charging REST/WebSocket API](docs/CHARGING-API.md), and [simulator setup](docs/SIMULATOR.md). The Next.js frontend consumes the versioned resource endpoints through a typed adapter; there is no whole-platform snapshot endpoint.
 
 ## Units and guarantees
 
@@ -50,5 +50,22 @@ All money is integer poisha: 100 poisha = 1 BDT = 1 Credit. BigInt database valu
 
 Station has many devices and an optional primary controller during provisioning. Every assigned bay must use that station's primary controller for this prototype. Each station has unique bay numbers and relay channels. Active sessions prevent hardware/vehicle edits. Foreign keys preserve financial/session history; deletion of referenced resources returns 409. Change enabled/status instead where appropriate.
 
-Admin writes and audit logs share serializable transactions. Audit summaries use a field allowlist, excluding device secrets and user profile contents. Reasons are required for deletion and account status changes; operators must never put secrets in free-text reasons. Audit/ledger immutability is enforced by migration triggers. Account deactivation with active charging returns 409 until a safe stop has been completed through future hardware orchestration.
+Admin writes and audit logs share serializable transactions. Audit summaries use a field allowlist, excluding device secrets and user profile contents. Reasons are required for deletion, account changes, charging stops, fault actions and energy-policy updates; operators must never put secrets in free-text reasons. Audit/ledger immutability is enforced by migration triggers. Account deactivation with active charging returns 409 until a safe stop and final-meter reconciliation complete.
+
+Station-energy intervals are persisted from accepted controller telemetry. Import/export tariffs are snapshotted per interval, so later policy changes do not rewrite history. `StationEnergySample` is operational accounting, while owner charging cost remains based on the session tariff and signed cumulative bay meter.
+
+## Full-stack integration test
+
+The browser journey uses a dedicated `_test` database, local MQTT broker, real Express routes, real Prisma transactions and the real simulator. Firebase REST and the external SSLCOMMERZ page are fixture boundaries; backend token mapping and payment settlement still run through isolated test adapters. Never run the test server against a production database.
+
+```powershell
+# Build the test-only server once
+node node_modules/esbuild/bin/esbuild tests/fullstack-server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/fullstack-test-server.mjs
+
+# Frontend/playwright.config.ts can start both test servers when these are set
+$env:TEST_FULL_STACK='true'
+$env:TEST_BASE_URL='http://127.0.0.1:3008'
+cd ..\frontend
+node node_modules/@playwright/test/cli.js test tests/e2e/full-stack.spec.ts
+```
 

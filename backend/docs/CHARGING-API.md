@@ -32,7 +32,10 @@ All endpoints require the local ADMIN role. Command/configuration mutations belo
 | GET `/charging-sessions/:sessionId/reconciliation` | Session, reservation, latest 50 commands and 100 events |
 | POST `/charging-sessions/:sessionId/reconcile` | Retries STOP under a new key to obtain signed final telemetry; never manually fabricates a debit |
 | GET `/faults` | Paginated faults and resolution status |
+| POST `/faults/:faultId/acknowledge` | Audited acknowledgement; keeps the physical fault active |
 | POST `/faults/:faultId/resolve` | Audited resolution; active charging must first be reconciled |
+| GET `/stations/:stationId/energy` | Current normalized solar/storage/EV/grid flow and persisted hourly history |
+| PUT `/stations/:stationId/energy-policy` | Station battery limits and grid tariffs; past intervals retain old tariffs |
 | GET `/audit-logs` | Existing paginated audit trail |
 
 Existing station/device/bay resource creation and configuration APIs remain available; use them to create inventory and set primary-controller assignment. Foreign keys and active-session guards protect existing assignments. Operator resolution records an acknowledgement of repair; confirm the physical condition is repaired before resolving. Continuing faulty telemetry raises the fault again. Unknown physical state must be inspected before any restart or reassignment.
@@ -74,6 +77,6 @@ Event envelope: `{type,data,eventId,at}`. `at` is UTC; integer money/energy valu
 | `session.telemetry` | `{session,telemetry}`; owner/admin only |
 | `credit.warning` | sessionId, remainingMinor; owner/admin |
 | `session.stopped` | `{session,telemetry}` on final reading, or session snapshot on confirmed start rejection |
-| `fault.raised`, `fault.resolved` | Operational fault identifiers/details; admins |
+| `fault.raised`, `fault.acknowledged`, `fault.resolved` | Operational fault identifiers/details; admins |
 
 Session snapshots contain status, cost, energy, limits, dataSource, reconciliationRequired and receipt fields. Public station events never include owners, wallet balances or private session telemetry. Both CHARGING and pending/stopped states should be rendered from backend state; browser timers are not billing authority.

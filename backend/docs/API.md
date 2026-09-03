@@ -24,14 +24,19 @@ Send `Authorization: Bearer <Firebase ID token>`. Verified UID synchronizes a lo
 | Method | Route | Body / response |
 |---|---|---|
 | GET | `/me` | Local profile |
-| PATCH | `/me` | Partial `{name, phone, city}`; role/status/UID edits rejected |
+| PATCH | `/me` | Partial `{name, phone, city, preferences, savedStations}`; role/status/UID edits rejected |
 | GET | `/me/vehicles` | Own vehicles, paginated |
-| POST | `/me/vehicles` | `{name, plate, connectorType, capacityWh, isDefault?}` |
+| POST | `/me/vehicles` | `{name, plate, connectorType, capacityWh, estimatedSocPct?, isDefault?}` |
 | PATCH | `/me/vehicles/:vehicleId` | Partial vehicle fields |
 | DELETE | `/me/vehicles/:vehicleId` | Deletes an unreferenced, inactive own vehicle |
 | GET | `/me/wallet` | balanceMinor, heldMinor, availableMinor; read only |
 | GET | `/me/wallet/ledger` | Own ledger, newest first |
 | GET | `/me/charging-sessions` | Own sessions, newest first |
+| GET | `/me/payments` | Own payment records with authoritative provider state |
+| GET | `/me/notifications` | Durable account/session/wallet notifications, newest first |
+| PATCH | `/me/notifications/:notificationId/read` | Mark an owned notification read |
+| POST | `/wallet/top-ups` | Create an idempotent SSLCOMMERZ Sandbox payment session |
+| GET | `/wallet/top-ups/:transactionId` | Read an owned payment's current verified state |
 
 Connector types: `CCS2`, `TYPE_2`, `CHADEMO`, `AC_SOCKET`. capacityWh is a positive integer up to 1,000,000. Vehicle ownership comes from the authenticated user, never a supplied ownerId.
 
@@ -53,6 +58,18 @@ All `/admin` routes require an ACTIVE local ADMIN. Generic mutation bodies wrap 
 | GET/PATCH/DELETE | `/admin/devices/:id` | Read/update/assign/delete |
 | GET/POST | `/admin/tariffs` | List/create |
 | GET/PATCH/DELETE | `/admin/tariffs/:id` | Read/update/delete |
+| GET | `/admin/stations/:stationId/energy` | Persisted current station flow and interval history; optional `from`/`to` |
+| PUT | `/admin/stations/:stationId/energy-policy` | Capacity, SOC/power limits and grid import/export tariffs |
+| GET | `/admin/charging-sessions` | Paginated owner sessions with commands, events, telemetry and receipts |
+| POST | `/admin/charging-sessions/:sessionId/stop` | Audited safe stop request; idempotency key required |
+| POST | `/admin/charging-sessions/:sessionId/reconcile` | Retry STOP to obtain final meter; never fabricates settlement |
+| GET | `/admin/devices/:deviceId/telemetry` | Current device and bay telemetry |
+| GET/POST | `/admin/devices/:deviceId/commands` | Command history; issue safe TEST/RESTART while idle |
+| POST | `/admin/faults/:faultId/acknowledge` | Record operational ownership without clearing the fault |
+| POST | `/admin/faults/:faultId/resolve` | Resolve after inspection and session reconciliation |
+| GET | `/admin/wallet-ledger` | Paginated ledger across owners |
+| GET | `/admin/payments` | Paginated payment records |
+| POST | `/admin/users/:userId/wallet/adjustments` | Audited credit/debit or exact original-ledger reversal |
 
 Station create fields: code, name, address, latitude, longitude, tariffId; optional status (ONLINE/OFFLINE/MAINTENANCE), isOpen, openingHours, solarCapable, batteryCapable. PATCH additionally accepts primaryDeviceId (nullable). Provision in order: tariff → station → device assigned to station → station primaryDeviceId → bays.
 
@@ -70,10 +87,8 @@ Example station creation:
 
 Every successful admin mutation creates an atomic audit entry with actor, action, target, safe before/after, reason where required, timestamp and server-generated correlation ID. Failed operations do not create successful audit records. Self-deactivation is rejected; users with active charging cannot be deactivated before safe stop completion.
 
-## Deferred integration
+## Payments, charging and realtime
 
-Prepaid wallet and Sandbox payment endpoints are documented in [SSLCOMMERZ Sandbox](SSLCOMMERZ-SANDBOX.md), including callback validation, idempotency, reconciliation and admin adjustments. Session-start/stop, command publishing, telemetry ingestion and WebSocket routes remain future work. The frontend Snapshot adapter still requires integration with these versioned resource endpoints.
+Prepaid wallet and Sandbox payment endpoints are documented in [SSLCOMMERZ Sandbox](SSLCOMMERZ-SANDBOX.md), including callback validation, idempotency and reconciliation. See [charging REST/WebSocket API](CHARGING-API.md) for start/stop, admin commands, fault handling, final-meter reconciliation and authenticated room subscriptions. See [MQTT protocol](MQTT-PROTOCOL.md) for device messages and [development simulator](SIMULATOR.md) for repeatable demonstrations.
 
-## Charging and realtime (Master Prompt 3)
-
-See [charging REST/WebSocket API](CHARGING-API.md) for start/stop, admin commands, reconciliation and authenticated room subscriptions. See [MQTT protocol](MQTT-PROTOCOL.md) for device messages and [development simulator](SIMULATOR.md) for repeatable demonstrations.
+The frontend intentionally joins these resources client-side. API errors remain errors; they never activate demo data. Production still needs real Firebase Admin credentials, payment merchant configuration, TLS MQTT identities and commissioned hardware.
