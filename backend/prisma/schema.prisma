@@ -71,6 +71,11 @@ enum LedgerKind {
   TOP_UP
   CHARGING_DEBIT
   ADJUSTMENT
+  ADMIN_CREDIT
+  ADMIN_DEBIT
+  REFUND
+  RESERVATION
+  RESERVATION_RELEASE
   REVERSAL
   DEMO_CREDIT
 }
@@ -97,6 +102,7 @@ model User {
   payments PaymentTransaction[]
   auditLogs AuditLog[]
   commands DeviceCommand[]
+  ledgerActions WalletLedger[]
   @@index([email])
   @@index([status, createdAt])
 }
@@ -136,12 +142,30 @@ model WalletLedger {
   balanceAfterMinor BigInt
   reference String @unique
   reason String?
+  idempotencyKey String @default(cuid())
+  requestHash String?
+  description String @default("")
+  metadata Json?
+  actorId String?
+  actor User? @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  reservationId String?
+  reservation CreditReservation? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  relatedLedgerId String?
+  relatedLedger WalletLedger? @relation("LedgerCorrection", fields: [relatedLedgerId], references: [id], onDelete: Restrict)
+  corrections WalletLedger[] @relation("LedgerCorrection")
+  isSandbox Boolean @default(true)
   isDemo Boolean @default(false)
-  paymentId String? @unique
+  paymentId String?
   payment PaymentTransaction? @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  sessionId String? @unique
+  sessionId String?
   session ChargingSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   createdAt DateTime @default(now())
+  @@unique([walletId, idempotencyKey])
+  @@index([actorId])
+  @@index([paymentId])
+  @@index([sessionId])
+  @@index([reservationId])
+  @@index([relatedLedgerId])
   @@index([walletId, createdAt])
 }
 model Tariff {
@@ -253,7 +277,7 @@ model ChargingSession {
   telemetry TelemetrySample[]
   commands DeviceCommand[]
   reservation CreditReservation?
-  ledger WalletLedger?
+  ledger WalletLedger[]
   @@unique([ownerId, requestId])
   @@index([ownerId, createdAt])
   @@index([bayId, stationId, deviceId])
@@ -314,7 +338,7 @@ model PaymentTransaction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   verifiedAt DateTime?
-  ledger WalletLedger?
+  ledger WalletLedger[]
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
 }
@@ -328,6 +352,7 @@ model CreditReservation {
   status ReservationStatus @default(HELD)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  ledger WalletLedger[]
   @@index([walletId, status])
 }
 model Fault {

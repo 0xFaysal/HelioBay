@@ -10,8 +10,7 @@ try {
     await tx.vehicle.upsert({ where: { id: 'demo-vehicle' }, create: { id: 'demo-vehicle', ownerId: owner.id, name: 'Demo EV', plate: 'DEMO-01', connectorType: 'TYPE_2', capacityWh: 40000, isDefault: true }, update: {} });
     const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId: owner.id } });
     if (!await tx.walletLedger.findUnique({ where: { reference: 'demo-opening-credit' } })) {
-      const funded = await tx.wallet.update({ where: { id: wallet.id }, data: { balanceMinor: { increment: 50000n } } });
-      await tx.walletLedger.create({ data: { walletId: wallet.id, kind: 'DEMO_CREDIT', amountMinor: 50000n, balanceAfterMinor: funded.balanceMinor, reference: 'demo-opening-credit', reason: 'Demo credits, no cash value', isDemo: true } });
+      await tx.walletLedger.create({ data: { walletId: wallet.id, kind: 'DEMO_CREDIT', amountMinor: 50000n, balanceAfterMinor: wallet.balanceMinor + 50000n, actorId: admin.id, description: "Demo credits, no cash value", reference: 'demo-opening-credit', reason: 'Demo credits, no cash value', isDemo: true } });
     }
     const tariff = await tx.tariff.upsert({ where: { id: 'demo-tariff' }, create: { id: 'demo-tariff', name: 'Demo standard tariff', priceMinorPerKwh: 2500 }, update: {} });
     const stations = [
