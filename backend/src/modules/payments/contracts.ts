@@ -1,5 +1,8 @@
-/** Contract only: provider verification and ledger posting are intentionally not implemented. */
+import type { User } from '../../generated/prisma/client.js';
+export interface GatewayOrder { transactionId: string; amountMinor: bigint; user: User }
+export interface GatewayValidation { status: string; tran_id: string; val_id?: string; amount?: string; currency?: string; currency_type?: string; currency_amount?: string; risk_level?: string | number }
 export interface PaymentGateway {
-  createCheckout(input: { paymentId: string; amountMinor: bigint; currency: 'BDT'; idempotencyKey: string }): Promise<{ checkoutUrl: string }>;
-  verify(providerReference: string): Promise<{ verified: boolean; amountMinor: bigint; currency: 'BDT'; paymentId: string }>;
+  initiate(order: GatewayOrder): Promise<{ sessionKey: string; gatewayPageUrl: string }>;
+  validate(valId: string): Promise<GatewayValidation>;
+  lookup(transactionId: string): Promise<GatewayValidation[]>;
 }

@@ -45,6 +45,11 @@ enum SessionStatus {
 }
 enum PaymentStatus {
   PENDING
+  VALIDATING
+  PAID
+  EXPIRED
+  RISK_REVIEW
+  REVERSED
   VERIFIED
   FAILED
   CANCELLED
@@ -333,6 +338,15 @@ model PaymentTransaction {
   currency String @default("BDT")
   status PaymentStatus @default(PENDING)
   providerReference String? @unique
+  gatewaySessionKey String?
+  gatewayPageUrl String?
+  requestHash String?
+  isSandbox Boolean @default(true)
+  expiresAt DateTime @default(now())
+  lastCheckedAt DateTime?
+  lastErrorCode String?
+  riskLevel Int?
+  gatewayStatus String?
   idempotencyKey String
   isDemo Boolean @default(false)
   createdAt DateTime @default(now())
@@ -341,6 +355,7 @@ model PaymentTransaction {
   ledger WalletLedger[]
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
+  @@index([status, lastCheckedAt])
 }
 model CreditReservation {
   id String @id @default(cuid())

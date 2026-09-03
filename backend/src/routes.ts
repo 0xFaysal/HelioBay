@@ -12,9 +12,12 @@ import { WalletService } from './modules/wallets/service.js';
 import { SessionService } from './modules/sessions/service.js';
 import { AdminService } from './modules/admin/service.js';
 import { adminRoutes } from './modules/admin/controller.js';
-export function mountApi(app: Express, db: Database, verify: TokenVerifier) {
+import { PaymentService } from './modules/payments/service.js';
+import { topupRoutes } from './modules/payments/controller.js';
+export function mountApi(app: Express, db: Database, verify: TokenVerifier, payments = new PaymentService(db,null,null)) {
   const auth = authenticate(verify, new AuthRepository(db));
   app.use('/api/v1/stations', stationRoutes(new StationService(new StationRepository(db))));
+  app.use('/api/v1/wallet', auth, topupRoutes(payments));
   app.use('/api/v1/me', auth, userRoutes(new UserService(db), new WalletService(db), new SessionService(db)));
   app.use('/api/v1/admin', auth, authorize('ADMIN'), adminRoutes(new AdminService(db)));
 }
