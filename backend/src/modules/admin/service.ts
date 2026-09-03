@@ -10,7 +10,7 @@ import { stationInput, stationPatch, bayInput, bayPatch, deviceInput, tariffInpu
 export type Resource = 'stations' | 'bays' | 'devices' | 'tariffs';
 export class AdminService {
   constructor(private db: Database) {}
-  users(p: { page: number; limit: number; search?: string }) { return this.db.user.findMany({ where: p.search ? { OR: [{ email: { contains: p.search, mode: 'insensitive' } }, { name: { contains: p.search, mode: 'insensitive' } }] } : {}, ...pageArgs(p), orderBy: { id: 'asc' } }); }
+  users(p: { page: number; limit: number; search?: string }) { return this.db.user.findMany({ where: p.search ? { OR: [{ email: { contains: p.search, mode: 'insensitive' } }, { name: { contains: p.search, mode: 'insensitive' } }] } : {}, ...pageArgs(p), orderBy: { id: 'asc' }, include: { wallet: { select: { balanceMinor: true, currency: true } } } }); }
   user(id: string) { return this.db.user.findUniqueOrThrow({ where: { id } }); }
   changeUser(id: string, input: unknown, ctx: AuditContext) {
     const data = userStatusInput.parse(input);
