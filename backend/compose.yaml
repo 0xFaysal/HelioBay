@@ -1,3 +1,4 @@
+name: heliobay
 services:
   postgres:
     image: postgres:17-alpine
@@ -16,4 +17,3 @@ services:
       retries: 20
 volumes:
   heliobay_pg:
-
