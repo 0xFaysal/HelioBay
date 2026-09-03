@@ -73,3 +73,7 @@ Every successful admin mutation creates an atomic audit entry with actor, action
 ## Deferred integration
 
 Prepaid wallet and Sandbox payment endpoints are documented in [SSLCOMMERZ Sandbox](SSLCOMMERZ-SANDBOX.md), including callback validation, idempotency, reconciliation and admin adjustments. Session-start/stop, command publishing, telemetry ingestion and WebSocket routes remain future work. The frontend Snapshot adapter still requires integration with these versioned resource endpoints.
+
+## Charging and realtime (Master Prompt 3)
+
+See [charging REST/WebSocket API](CHARGING-API.md) for start/stop, admin commands, reconciliation and authenticated room subscriptions. See [MQTT protocol](MQTT-PROTOCOL.md) for device messages and [development simulator](SIMULATOR.md) for repeatable demonstrations.

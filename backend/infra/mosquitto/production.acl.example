@@ -1,0 +1,16 @@
+# Broker username -> device scope. Configure password_file and TLS in broker config.
+# Generate a separate exact stanza for every provisioned device.
+user heliobay-backend
+topic read heliobay/v1/stations/+/devices/+/telemetry
+topic read heliobay/v1/stations/+/devices/+/events
+topic read heliobay/v1/stations/+/devices/+/acks
+topic read heliobay/v1/stations/+/devices/+/status
+topic write heliobay/v1/stations/+/devices/+/commands
+topic write heliobay/v1/backend/heliobay-backend/status
+
+user ESP32-ST001
+topic write heliobay/v1/stations/ST001/devices/ESP32-ST001/telemetry
+topic write heliobay/v1/stations/ST001/devices/ESP32-ST001/events
+topic write heliobay/v1/stations/ST001/devices/ESP32-ST001/acks
+topic write heliobay/v1/stations/ST001/devices/ESP32-ST001/status
+topic read heliobay/v1/stations/ST001/devices/ESP32-ST001/commands
