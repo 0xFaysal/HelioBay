@@ -15,7 +15,12 @@ export function createApp(env: Env, readiness: () => Promise<unknown> = async ()
   app.set('json replacer', (_key: string, value: unknown) => typeof value === 'bigint' ? value.toString() : value);
   app.use((_req, res, next) => { res.locals.requestId = randomUUID(); res.locals.logger = logger; res.setHeader('X-Request-ID', res.locals.requestId); res.on('finish', () => logger.info({ requestId: res.locals.requestId, status: res.statusCode }, 'Request completed')); next(); });
   app.use(helmet());
-  app.use(cors({ origin(origin, cb) { cb(origin && !env.CORS_ORIGINS.includes(origin) ? new ApiError(403, 'ORIGIN_DENIED', 'Origin not allowed') : null, true); } }));
+  const browserCors = cors({ origin(origin, cb) { cb(origin && !env.CORS_ORIGINS.includes(origin) ? new ApiError(403, 'ORIGIN_DENIED', 'Origin not allowed') : null, true); } });
+  // Hosted gateway POST navigation/IPN is public and authenticated by server-side validation.
+  app.use((req,res,next) => {
+    if(req.method==='POST' && /^\/api\/v1\/payments\/sslcommerz\/(success|fail|cancel|ipn)$/.test(req.path)) next();
+    else browserCors(req,res,next);
+  });
   app.use('/api', rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false, handler: (_req, _res, next) => next(new ApiError(429, 'RATE_LIMITED', 'Too many requests')) }));
   app.use(express.json({ limit: '32kb' }));
   app.get('/health/live', (_req, res) => ok(res, { status: 'ok' }));
