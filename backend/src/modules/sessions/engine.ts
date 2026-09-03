@@ -4,14 +4,14 @@ import type { Prisma,ChargingSession,DeviceCommand } from '../../generated/prism
 import type { IotConfig } from '../../config/iot.js';
 import { ApiError } from '../../shared/errors/api-error.js';
 import { lockWallet,postLedger,fingerprint } from '../wallets/ledger.js';
-import { costMinor } from '../wallets/units.js';
+import { chargingBudget,cappedChargingCost,stoppingMargin } from '../wallets/charging-budget.js';
 import { RealtimeBus } from '../realtime/bus.js';
 import { thresholds,plugState,type Telemetry,type Ack,type DeviceMessage } from '../iot/protocol.js';
 import { resolveDeviceSecret,type SecretResolver } from '../iot/ingress.js';
 import type { CommandPublisher } from '../iot/gateway.js';
 import { transition,type StopReason } from './state.js';
 export const startInput=z.object({stationId:z.string().min(1).max(100),bayId:z.string().min(1).max(100),vehicleId:z.string().min(1).max(128)}).strict();
-const min=(a:bigint,b:bigint)=>a<b?a:b;
+
 export class ChargingEngine {
   constructor(readonly db:Database,readonly config:IotConfig,readonly bus:RealtimeBus,private publisher:CommandPublisher,private secrets:SecretResolver=resolveDeviceSecret) {}
   private notify(type:string,session:ChargingSession,data:unknown=session) {this.bus.publish({type,userId:session.ownerId,sessionId:session.id,data});}
@@ -46,7 +46,7 @@ export class ChargingEngine {
       const held=await tx.creditReservation.aggregate({where:{walletId:wallet.id,status:'HELD'},_sum:{amountMinor:true}});
       const reserved=wallet.balanceMinor-(held._sum.amountMinor??0n);
       if(reserved<=0n)throw new ApiError(422,'INSUFFICIENT_BALANCE','Positive available Credits are required');
-      const maxEnergy=min(reserved*1000000n/BigInt(station.tariff.priceMinorPerKwh),BigInt(this.config.MAX_SESSION_ENERGY_MWH));
+      const maxEnergy=chargingBudget(reserved,BigInt(station.tariff.priceMinorPerKwh),BigInt(this.config.MAX_SESSION_ENERGY_MWH)).maxEnergyMWh;
       if(maxEnergy<=0n)throw new ApiError(422,'INSUFFICIENT_BALANCE','Credits are too low for the energy authorization');
       let created=await tx.chargingSession.create({data:{ownerId:userId,stationId:station.id,bayId:bay.id,deviceId:device.id,vehicleId:vehicle.id,tariffId:station.tariff.id,tariffMinorPerKwh:station.tariff.priceMinorPerKwh,requestId:key,startRequestHash:hash,reservedMinor:reserved,maxEnergyMWh:maxEnergy,maxDurationSeconds:this.config.MAX_SESSION_DURATION_SECONDS,dataSource:device.dataSource}});
       created=await transition(tx,created,'READY');created=await transition(tx,created,'START_PENDING');
@@ -91,7 +91,7 @@ export class ChargingEngine {
   private async finish(tx:Prisma.TransactionClient,session:ChargingSession,energy:bigint,failed=false) {
     if(session.completedAt)return session;
     const wallet=await lockWallet(tx,session.ownerId),reservation=await tx.creditReservation.findUniqueOrThrow({where:{sessionId:session.id}});
-    const cost=failed?0n:min(costMinor(energy,BigInt(session.tariffMinorPerKwh)),reservation.amountMinor);
+    const cost=failed?0n:cappedChargingCost(energy,BigInt(session.tariffMinorPerKwh),reservation.amountMinor);
     await tx.creditReservation.update({where:{id:reservation.id},data:{status:failed?'RELEASED':'SETTLED'}});
     if(cost>0n)await postLedger(tx,{userId:session.ownerId,actorId:session.ownerId,kind:'CHARGING_DEBIT',amountMinor:-cost,key:`session:${session.id}:debit`,hash:fingerprint({sessionId:session.id,cost}),description:'Final charging debit',sessionId:session.id,reservationId:reservation.id,isSandbox:session.dataSource!=='LIVE_HARDWARE'});
     await postLedger(tx,{userId:session.ownerId,actorId:session.ownerId,kind:'RESERVATION_RELEASE',amountMinor:reservation.amountMinor,key:`session:${session.id}:release`,hash:fingerprint({sessionId:session.id}),description:'Charging reservation closed; unused Credits released',sessionId:session.id,reservationId:reservation.id,isSandbox:session.dataSource!=='LIVE_HARDWARE'});
@@ -142,16 +142,16 @@ export class ChargingEngine {
       if(energy<s.energyMWh||energy-s.energyMWh>plausible) {
         await this.raiseFault(tx,deviceId,bay.id,'INVALID_ENERGY');return this.queueStop(tx,s,'SAFETY_FAULT',s.ownerId,`stop:${s.id}`,`meter:${s.id}`);
       }
-      const accrued=min(costMinor(energy,BigInt(s.tariffMinorPerKwh)),s.reservedMinor);
+      const accrued=cappedChargingCost(energy,BigInt(s.tariffMinorPerKwh),s.reservedMinor);
       s=await tx.chargingSession.update({where:{id:s.id},data:{energyMWh:energy,costMinor:accrued,lastTelemetryAt:at}});
-      const margin=BigInt(bay.maxPowerW)*BigInt(limits.stopLatencyMs+this.config.TELEMETRY_INTERVAL_MS)*BigInt(device.simulationSpeed)/3600n;
+      const margin=stoppingMargin(bay.maxPowerW,limits.stopLatencyMs,this.config.TELEMETRY_INTERVAL_MS,device.simulationSpeed);
       const creditEnergy=s.reservedMinor*1000000n/BigInt(s.tariffMinorPerKwh);
       let reason:StopReason|undefined;
       if(t.faultCodes.length||t.chargingVoltageMv>limits.maxVoltageMv||t.chargingCurrentMa>limits.maxCurrentMa||t.chargingPowerW>bay.maxPowerW){reason='SAFETY_FAULT';await this.raiseFault(tx,deviceId,bay.id,t.faultCodes[0]??'UNSAFE_ELECTRICAL_VALUE');}
       else if(!t.online)reason='DEVICE_OFFLINE';else if(!plug.connected)reason='PLUG_DISCONNECTED';else if(plug.full)reason='BATTERY_FULL';
       else if(energy+margin>=s.maxEnergyMWh)reason=s.maxEnergyMWh<creditEnergy?'MAX_ENERGY_REACHED':'CREDIT_EXHAUSTED';
       else if(Date.now()-(s.startedAt??s.createdAt).getTime()>=s.maxDurationSeconds*1000)reason='MAX_DURATION_REACHED';
-      if(s.reservedMinor-accrued<=s.reservedMinor/10n&&!s.lowCreditWarned){s=await tx.chargingSession.update({where:{id:s.id},data:{lowCreditWarned:true}});}
+      if((s.reservedMinor-accrued<=s.reservedMinor/10n||reason==='CREDIT_EXHAUSTED')&&!s.lowCreditWarned){s=await tx.chargingSession.update({where:{id:s.id},data:{lowCreditWarned:true}});}
       if(reason&&!s.stopReason)s=await this.queueStop(tx,s,reason,s.ownerId,`stop:${s.id}`,`telemetry:${s.id}`);
       if(t.final&&!t.relayOn) {
         if(!s.stopReason)s=await tx.chargingSession.update({where:{id:s.id},data:{stopReason:reason??'SAFETY_FAULT'}});
@@ -208,6 +208,7 @@ export class ChargingEngine {
     if(session)this.notify('command.timed_out',session,{commandId:command.id,session});
   }
 }
+
 
 
 
