@@ -61,9 +61,11 @@ export class PaymentSettlement {
     return safePayment(await this.service.expire(await db.paymentTransaction.findUniqueOrThrow({where:{id:transactionId}})));
   }
   async reconcileBatch(limit=50) {
-    const candidates=await this.service.db.paymentTransaction.findMany({where:{isSandbox:true,status:{in:['PENDING','VALIDATING','EXPIRED','FAILED','CANCELLED']},createdAt:{gte:new Date(Date.now()-7*86400000)},OR:[{lastCheckedAt:null},{lastCheckedAt:{lt:new Date(Date.now()-60000)}}]},take:Math.min(100,Math.max(1,limit)),orderBy:{createdAt:'asc'},select:{id:true}});
+    const candidates=await this.service.db.paymentTransaction.findMany({where:{isSandbox:true,status:{in:['PENDING','VALIDATING','EXPIRED','FAILED','CANCELLED']},createdAt:{gte:new Date(Date.now()-7*86400000)},OR:[{lastCheckedAt:null},{lastCheckedAt:{lt:new Date(Date.now()-60000)}}]},take:Math.min(100,Math.max(1,limit)),orderBy:[{lastCheckedAt:{sort:'asc',nulls:'first'}},{createdAt:'asc'}],select:{id:true}});
     const results:{transactionId:string;status:string}[]=[];
     for(const candidate of candidates) {
+      const claim=await this.service.db.paymentTransaction.updateMany({where:{id:candidate.id,status:{in:['PENDING','VALIDATING','EXPIRED','FAILED','CANCELLED']},OR:[{lastCheckedAt:null},{lastCheckedAt:{lt:new Date(Date.now()-60000)}}]},data:{lastCheckedAt:new Date()}});
+      if(!claim.count) continue;
       try { const result=await this.reconcile(candidate.id);results.push({transactionId:candidate.id,status:result.status}); }
       catch { results.push({transactionId:candidate.id,status:'RETRY_REQUIRED'}); }
     }
