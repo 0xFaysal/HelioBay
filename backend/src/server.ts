@@ -1,3 +1,4 @@
+import { attachRealtime } from './modules/realtime/server.js';
 import { createIotRuntime } from './modules/iot/runtime.js';
 import { readIotConfig } from './config/iot.js';
 import { makeLogger } from './config/logger.js';
@@ -17,12 +18,16 @@ const logger=makeLogger(env.LOG_LEVEL);
 const iot=createIotRuntime(db,readIotConfig(),message=>logger.warn(message));
 mountApi(app, db, firebaseVerifier(env.FIREBASE_PROJECT_ID), new PaymentService(db, payments ? new SslcommerzGateway(payments) : null, payments),iot.engine);
 const server = finishApp(app).listen(env.PORT);
+const realtime=attachRealtime(server,db,firebaseVerifier(env.FIREBASE_PROJECT_ID),iot.bus,env.CORS_ORIGINS);
 iot.start();
 let closing = false;
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
   if (closing) return; closing = true;
   const timer = setTimeout(() => process.exit(1), 10_000).unref();
-  server.close(() => { void iot.close().then(()=>db.$disconnect()).finally(() => { clearTimeout(timer); process.exit(0); }); });
+  const socketsClosed=realtime.close();
+  server.close(() => { void socketsClosed.then(()=>iot.close()).then(()=>db.$disconnect()).finally(() => { clearTimeout(timer); process.exit(0); }); });
 });
+
+
 
 
