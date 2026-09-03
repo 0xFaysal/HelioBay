@@ -20,6 +20,7 @@ import { adminRoutes } from './modules/admin/controller.js';
 import { PaymentService } from './modules/payments/service.js';
 import { callbackRoutes } from './modules/payments/callback-controller.js';
 import { topupRoutes } from './modules/payments/controller.js';
+import {EnergyService}from'./modules/energy/service.js';import{energyRoutes}from'./modules/energy/controller.js';
 export function mountApi(app: Express, db: Database, verify: TokenVerifier, payments = new PaymentService(db,null,null), engine?:ChargingEngine) {
   const auth = authenticate(verify, new AuthRepository(db));
   if(engine){app.use('/api/v1/charging-sessions',auth,chargingRoutes(engine));app.use('/api/v1/admin',auth,authorize('ADMIN'),iotAdminRoutes(engine));}
@@ -28,5 +29,6 @@ export function mountApi(app: Express, db: Database, verify: TokenVerifier, paym
   app.use('/api/v1/wallet', auth, topupRoutes(payments));
   app.use('/api/v1/me', auth, userRoutes(new UserService(db), new WalletService(db), new SessionService(db)));
   app.use('/api/v1/admin', auth, authorize('ADMIN'), adminRoutes(new AdminService(db)), adminWalletRoutes(new AdminWalletService(db)));
+  app.use('/api/v1/admin',auth,authorize('ADMIN'),energyRoutes(new EnergyService(db)));
 }
 

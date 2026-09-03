@@ -83,6 +83,17 @@ export function iotAdminRoutes(engine: ChargingEngine) {
             return tx.device.update({ where: { id: deviceId }, data: { stationId: b.stationId, status: 'OFFLINE', lastSeenAt: null }, select: { id: true, stationId: true, status: true } });
         }));
     });
+    r.post('/faults/:faultId/acknowledge', async (req, res) => {
+        const b = confirmation.strict().parse(req.body), faultId = id.parse(req.params.faultId);
+        const result = await mutation(req.user!.id, idempotencyKey.parse(req.headers['idempotency-key']), 'FAULT_ACKNOWLEDGED', faultId, b, res.locals.requestId, async (tx) => {
+            const fault = await tx.fault.findUniqueOrThrow({ where: { id: faultId } });
+            if (fault.status === 'RESOLVED') throw new ApiError(409, 'FAULT_RESOLVED', 'A resolved fault cannot be acknowledged again');
+            if (fault.status === 'ACKNOWLEDGED') return fault;
+            return tx.fault.update({ where: { id: faultId }, data: { status: 'ACKNOWLEDGED' } });
+        });
+        engine.bus.publish({ type: 'fault.acknowledged', data: result });
+        ok(res, result);
+    });
     r.post('/faults/:faultId/resolve', async (req, res) => {
         const b = confirmation.strict().parse(req.body), faultId = id.parse(req.params.faultId);
         const result = await mutation(req.user!.id, idempotencyKey.parse(req.headers['idempotency-key']), 'FAULT_RESOLVED', faultId, b, res.locals.requestId, async (tx) => {

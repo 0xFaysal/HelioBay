@@ -22,6 +22,7 @@ export class SimulatedDevice {
     private faults: string[] = [];
     private finished = false;
     private remainder = 0n;
+    private stationEv=0n;private solarEnergy=0n;private gridImportEnergy=0n;private gridExportEnergy=0n;private stationBattery=80;private batteryPower=400;private importPower=0;private exportPower=0;
     constructor(readonly options: {
         stationId: string;
         deviceId: string;
@@ -34,7 +35,7 @@ export class SimulatedDevice {
     private common() { return { bootId: this.boot, sequence: (++this.seq).toString(), at: new Date().toISOString(), dataSource: 'SIMULATOR' as const }; }
     status(online: boolean): DeviceMessage { return { ...this.common(), kind: 'status', online }; }
     async connect() { await this.emit(this.status(true)); await this.sample(); }
-    private async sample() { const solar = [900, 1000, 1100, 1000][this.ticks % 4]!; const message: Telemetry = { ...this.common(), kind: 'telemetry', bayId: this.options.bayId, sessionId: this.sessionId, online: true, plugConnected: this.plugged, relayOn: this.relay, batterySenseAvailable: true, vehicleBatteryMv: this.plugged ? 48000 + this.percent * 20 : 0, vehicleBatteryPercent: this.plugged ? this.percent : null, batteryPercentageEstimated: true, solarVoltageMv: 50000, solarCurrentMa: solar * 20, solarPowerW: solar, chargingVoltageMv: this.plugged ? 50000 : 0, chargingCurrentMa: this.relay ? 20000 : 0, chargingPowerW: this.relay ? 1000 : 0, energyMWh: this.energy.toString(), stationBatteryPercent: 80, source: 'SOLAR', faultCodes: this.faults, final: this.finished }; await this.emit(message); }
+    private async sample() { const solar = [900, 1000, 1100, 1000][this.ticks % 4]!; const message: Telemetry = { ...this.common(), kind: 'telemetry', bayId: this.options.bayId, sessionId: this.sessionId, online: true, plugConnected: this.plugged, relayOn: this.relay, batterySenseAvailable: true, vehicleBatteryMv: this.plugged ? 48000 + this.percent * 20 : 0, vehicleBatteryPercent: this.plugged ? this.percent : null, batteryPercentageEstimated: true, solarVoltageMv: 50000, solarCurrentMa: solar * 20, solarPowerW: solar, solarEnergyMWh:this.solarEnergy.toString(), chargingVoltageMv: this.plugged ? 50000 : 0, chargingCurrentMa: this.relay ? 20000 : 0, chargingPowerW: this.relay ? 1000 : 0, energyMWh: this.energy.toString(),stationEvEnergyMWh:this.stationEv.toString(), stationBatteryPercent: Math.round(this.stationBattery),stationBatteryPowerW:this.batteryPower,auxiliaryPowerW:500,gridImportPowerW:this.importPower,gridExportPowerW:this.exportPower,gridImportEnergyMWh:this.gridImportEnergy.toString(),gridExportEnergyMWh:this.gridExportEnergy.toString(), source: this.importPower?'GRID':this.batteryPower<0?'STORAGE':'SOLAR', faultCodes: this.faults, final: this.finished }; await this.emit(message); }
     async command(input: unknown) {
         const parsed = commandSchema.safeParse(input);
         if (!parsed.success)
@@ -83,6 +84,12 @@ export class SimulatedDevice {
     }
     async step(ms: number) {
         this.ticks++;
+        const solar=[900,1000,1100,1000][this.ticks%4]!,ev=this.relay?1000:0,demand=500+ev,surplus=solar-demand;
+        this.batteryPower=surplus>=0&&this.stationBattery<95?Math.min(surplus,40000):surplus<0&&this.stationBattery>20?-Math.min(-surplus,30000):0;
+        this.importPower=Math.max(0,demand-solar+this.batteryPower);this.exportPower=Math.max(0,solar-demand-this.batteryPower);
+        const delivered=(power:number)=>BigInt(Math.max(0,Math.round(power*ms*this.options.speed/3600)));
+        this.solarEnergy+=delivered(solar);this.stationEv+=delivered(ev);this.gridImportEnergy+=delivered(this.importPower);this.gridExportEnergy+=delivered(this.exportPower);
+        this.stationBattery=Math.max(20,Math.min(95,this.stationBattery+this.batteryPower*ms*this.options.speed/3600000/120000*100));
         if (!this.sessionId)
             this.plugged = true;
         if (this.relay) {

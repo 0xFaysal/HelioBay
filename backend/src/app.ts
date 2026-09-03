@@ -8,7 +8,7 @@ import { makeLogger } from './config/logger.js';
 import { ApiError } from './shared/errors/api-error.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { ok } from './shared/http.js';
-export function createApp(env: Env, readiness: () => Promise<unknown> = async () => {}) {
+export function createApp(env: Env, readiness: () => Promise<unknown> = async () => {}, options: { apiRateLimit?: number } = {}) {
   const app = express();
   const logger = makeLogger(env.LOG_LEVEL);
   app.disable('x-powered-by'); app.set('trust proxy', env.TRUST_PROXY_HOPS);
@@ -21,7 +21,7 @@ export function createApp(env: Env, readiness: () => Promise<unknown> = async ()
     if(req.method==='POST' && /^\/api\/v1\/payments\/sslcommerz\/(success|fail|cancel|ipn)$/.test(req.path)) next();
     else browserCors(req,res,next);
   });
-  app.use('/api', rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false, handler: (_req, _res, next) => next(new ApiError(429, 'RATE_LIMITED', 'Too many requests')) }));
+  app.use('/api', rateLimit({ windowMs: 60_000, limit: options.apiRateLimit ?? 120, standardHeaders: 'draft-8', legacyHeaders: false, handler: (_req, _res, next) => next(new ApiError(429, 'RATE_LIMITED', 'Too many requests')) }));
   app.use(express.json({ limit: '32kb' }));
   app.get('/health/live', (_req, res) => ok(res, { status: 'ok' }));
   app.get('/health/ready', async (_req, res) => { try { await readiness(); ok(res, { status: 'ready' }); } catch { throw new ApiError(503, 'NOT_READY', 'Database unavailable'); } });

@@ -9,6 +9,8 @@ export class UserService {
   constructor(private db: Database) {}
   get(id: string) { return this.db.user.findUniqueOrThrow({ where: { id } }); }
   payments(userId:string,p:{page:number;limit:number}) { return this.db.paymentTransaction.findMany({where:{userId},...pageArgs(p),orderBy:[{createdAt:'desc'},{id:'desc'}]}); }
+  notifications(userId:string,p:{page:number;limit:number}){return this.db.notification.findMany({where:{userId},...pageArgs(p),orderBy:[{createdAt:'desc'},{id:'desc'}]});}
+  async readNotification(userId:string,id:string){await this.db.notification.findFirstOrThrow({where:{id,userId}});return this.db.notification.update({where:{id},data:{readAt:new Date()}});}
   patch(id: string, data: z.infer<typeof profilePatch>) { return this.db.user.update({ where: { id }, data }); }
   vehicles(ownerId: string, p: { page: number; limit: number }) { return this.db.vehicle.findMany({ where: { ownerId }, ...pageArgs(p), orderBy: { id: 'asc' } }); }
   createVehicle(ownerId: string, data: z.infer<typeof vehicleInput>) {

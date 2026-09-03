@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createApiClient, type ApiClientOptions } from "./client.ts";
 import { seed } from "../credit/seed.ts";
 import { snapshotSchema, type Snapshot, type Session, type Payment, type User, type Station, type Bay, type Device, type Command } from "../credit/model.ts";
+import {stationEnergySchema}from"../energy/model.ts";
 
 // Decimal strings are converted only after proving exact integer representability.
 export const minorText = z.string().regex(/^-?\d+$/).transform(Number).refine(Number.isSafeInteger, "Amount exceeds safe display precision");
@@ -21,6 +22,7 @@ const resourceCommand = z.object({id:z.string(),sessionId:nullableText,bayId:nul
 const meter = z.object({recordedAt:iso,energyMWh:minorText,powerW:z.number().nullable(),voltageMv:z.number().nullable(),currentMa:z.number().nullable(),source:z.string(),simulated:z.boolean(),measurements:z.object({vehicleBatteryPercent:z.number().nullable().optional(),source:z.enum(["SOLAR","STORAGE","GRID"]).optional()}).nullable()});
 export const resourceSession = z.object({id:z.string(),ownerId:z.string(),stationId:z.string(),bayId:z.string(),deviceId:z.string(),vehicleId:z.string(),status:z.enum(["CREATED","AWAITING_PLUG","READY","START_PENDING","STOP_PENDING","INTERRUPTED","PENDING","STARTING","CHARGING","STOPPING","COMPLETED","FAILED"]),createdAt:iso,updatedAt:iso,startedAt:iso.nullable(),completedAt:iso.nullable(),stopReason:nullableText,energyMWh:minorText,costMinor:minorText,reservedMinor:minorText,endingBalanceMinor:minorText.nullable(),tariffMinorPerKwh:z.number().int(),reconciliationRequired:z.boolean(),dataSource:source,receipt:z.object({confirmed:z.boolean()}).passthrough().nullable(),vehicle:resourceVehicle,telemetry:z.array(meter),events:z.array(z.object({createdAt:iso,type:z.string(),data:z.unknown()})),commands:z.array(resourceCommand)});
 export const resourceFault = z.object({id:z.string(),deviceId:z.string(),bayId:nullableText,code:z.string(),message:z.string(),status:z.enum(["OPEN","ACKNOWLEDGED","RESOLVED"]),createdAt:iso});
+export const resourceNotification=z.object({id:z.string(),userId:z.string(),type:z.string(),title:z.string(),message:z.string(),reference:nullableText,readAt:iso.nullable(),createdAt:iso});
 export const resourceAudit = z.object({id:z.string(),actorId:z.string(),action:z.string(),targetId:z.string(),reason:nullableText,createdAt:iso});
 export const resourceTariff = z.object({id:z.string(),name:z.string(),priceMinorPerKwh:z.number().int(),active:z.boolean()});
 export const mapUser = (u:z.infer<typeof resourceUser>):User => ({id:u.id,name:u.name,email:u.email??"",phone:u.phone??"",city:u.city??"",role:u.role==="ADMIN"?"admin":"owner",status:u.status==="ACTIVE"?"active":"blocked",preferences:u.preferences,savedStations:u.savedStations});
@@ -52,17 +54,18 @@ export function createResources(options:ApiClientOptions) {
   }
   async function load(role:"owner"|"admin",signal?:AbortSignal):Promise<Snapshot> {
     const data=seed(new Date().toISOString(),true);
-    const [places,me,vehicles,wallet,sessions,ledger,payments] = await Promise.all([directory(signal),request("/me",resourceUser,{signal}),all("/me/vehicles",resourceVehicle,signal),request("/me/wallet",resourceWallet,{signal}),all(role==="admin"?"/admin/charging-sessions":"/me/charging-sessions",resourceSession,signal),all(role==="admin"?"/admin/wallet-ledger":"/me/wallet/ledger",resourceLedger,signal),all(role==="admin"?"/admin/payments":"/me/payments",resourcePayment,signal)]);
+    const [places,me,vehicles,wallet,sessions,ledger,payments,notifications] = await Promise.all([directory(signal),request("/me",resourceUser,{signal}),all("/me/vehicles",resourceVehicle,signal),request("/me/wallet",resourceWallet,{signal}),all(role==="admin"?"/admin/charging-sessions":"/me/charging-sessions",resourceSession,signal),all(role==="admin"?"/admin/wallet-ledger":"/me/wallet/ledger",resourceLedger,signal),all(role==="admin"?"/admin/payments":"/me/payments",resourcePayment,signal),all("/me/notifications",resourceNotification,signal)]);
     Object.assign(data,places);data.users=[mapUser(me)];data.vehicles=vehicles.map(mapVehicle);data.wallets=[wallet];data.sessions=sessions.map(mapSession);data.commands=sessions.flatMap(s=>s.commands.map(mapCommand));
     for(const s of sessions)if(!data.vehicles.some(v=>v.id===s.vehicleId))data.vehicles.push(mapVehicle(s.vehicle));
     data.ledger=ledger.map(l=>({id:l.id,userId:l.wallet.userId,kind:({TOP_UP:"top-up",CHARGING_DEBIT:"charging-debit",ADJUSTMENT:"adjustment",ADMIN_CREDIT:"adjustment",ADMIN_DEBIT:"adjustment",DEMO_CREDIT:"adjustment",REVERSAL:"reversal",REFUND:"refund",RESERVATION:"reservation",RESERVATION_RELEASE:"reservation-release"} as const)[l.kind],amountMinor:l.amountMinor,balanceAfterMinor:l.balanceAfterMinor,reference:l.paymentId??l.sessionId??l.reference,reason:l.reason??l.description,status:"posted",sandbox:l.isSandbox,at:l.createdAt}));
-    data.payments=payments.map(mapPayment);
+    data.payments=payments.map(mapPayment);data.notifications=notifications.map(n=>({id:n.id,userId:n.userId,type:n.type,title:n.title,message:n.message,reference:n.reference??undefined,readAt:n.readAt??undefined,createdAt:n.createdAt}));
     if(role==="admin") {
       const [users,faults,audit,controllers]=await Promise.all([all("/admin/users",resourceUser,signal),all("/admin/faults",resourceFault,signal),all("/admin/audit-logs",resourceAudit,signal),all("/admin/devices",resourceDevice,signal)]);
       data.users=users.map(mapUser);data.wallets=await Promise.all(users.map(u=>request(`/admin/users/${encodeURIComponent(u.id)}/wallet`,resourceWallet,{signal})));
       data.devices=controllers.map(d=>({...data.devices.find(p=>p.id===d.id),id:d.id,publicId:d.publicId,stationId:d.stationId!,online:d.status==="ONLINE",lastSeen:d.lastSeenAt??new Date(0).toISOString(),firmware:d.firmwareVersion??"Not reported",dataSource:d.dataSource,stationBattery:0,solarW:0,gridBackup:false,gridExport:false,outcome:"success"}));
       data.faults=faults.map(f=>({id:f.id,deviceId:f.deviceId,stationId:data.devices.find(d=>d.id===f.deviceId)?.stationId??"unassigned",bayId:f.bayId??undefined,message:f.message,status:({OPEN:"open",ACKNOWLEDGED:"acknowledged",RESOLVED:"resolved"} as const)[f.status],severity:"critical",at:f.createdAt,note:f.code}));
       data.audit=audit.map(a=>({id:a.id,actorId:a.actorId,action:a.action,reference:a.targetId,reason:a.reason??"",at:a.createdAt}));
+      data.energy=await Promise.all(data.stations.map(s=>request(`/admin/stations/${encodeURIComponent(s.id)}/energy`,stationEnergySchema,{signal})));
     }
     data.policy.communicationTimeoutMs=30000;
     return snapshotSchema.parse(data);

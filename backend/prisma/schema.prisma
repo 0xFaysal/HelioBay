@@ -120,6 +120,7 @@ model User {
   sessions ChargingSession[]
   payments PaymentTransaction[]
   auditLogs AuditLog[]
+  notifications Notification[]
   commands DeviceCommand[]
   ledgerActions WalletLedger[]
   @@index([email])
@@ -218,6 +219,8 @@ model Station {
   devices Device[] @relation("StationDevices")
   bays Bay[]
   sessions ChargingSession[]
+  energyPolicy StationEnergyPolicy?
+  energySamples StationEnergySample[]
   isDemo Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -348,8 +351,43 @@ model TelemetrySample {
   currentMa Int?
   source String
   simulated Boolean @default(false)
+  energyInterval StationEnergySample?
   @@unique([deviceId, sequence])
   @@index([sessionId, recordedAt])
+}
+model StationEnergyPolicy {
+  id String @id @default(cuid())
+  stationId String @unique
+  station Station @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  capacityWh Int @default(120000)
+  minSocPct Float @default(20)
+  maxSocPct Float @default(95)
+  maxChargeW Int @default(40000)
+  maxDischargeW Int @default(30000)
+  auxiliaryW Int @default(500)
+  importTariffMinor Int @default(0)
+  exportTariffMinor Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model StationEnergySample {
+  id String @id @default(cuid())
+  stationId String
+  station Station @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  telemetryId String @unique
+  telemetry TelemetrySample @relation(fields: [telemetryId], references: [id], onDelete: Restrict)
+  recordedAt DateTime
+  durationMs Int
+  solarMWh BigInt
+  evMWh BigInt
+  importMWh BigInt
+  exportMWh BigInt
+  batterySocPct Float
+  batteryPowerW Int
+  importTariffMinor Int
+  exportTariffMinor Int
+  dataSource DataSource
+  @@index([stationId, recordedAt])
 }
 model DeviceCommand {
   id String @id @default(cuid())
@@ -458,6 +496,19 @@ model SessionEvent {
   data Json?
   createdAt DateTime @default(now())
   @@index([sessionId, createdAt])
+}
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Restrict)
+  type String
+  title String
+  message String
+  reference String?
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  @@unique([userId,type,reference])
+  @@index([userId,readAt,createdAt])
 }
 model DeviceInbox {
   id        String @id @default(cuid())

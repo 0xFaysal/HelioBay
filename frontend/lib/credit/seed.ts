@@ -1,6 +1,6 @@
 import type { Snapshot } from "./model.ts";
 export function seed(now = new Date().toISOString(), empty = false): Snapshot {
-  const data: Snapshot = { revision: 0, lastTick: now, energy: [], users: [], vehicles: [], stations: [], bays: [], devices: [], wallets: [], ledger: [], payments: [], sessions: [], commands: [], faults: [], audit: [], policy: { maxTopupMinor: 500000, defaultTariffMinor: 1800, demoSpeed: 1, modelScale: 16000, targetBattery: 100, communicationTimeoutMs: 15000 }, previousPolicy: null };
+  const data: Snapshot = { revision: 0, lastTick: now, energy: [], users: [], vehicles: [], stations: [], bays: [], devices: [], wallets: [], ledger: [], payments: [], sessions: [], commands: [], faults: [], notifications:[], audit: [], policy: { maxTopupMinor: 500000, defaultTariffMinor: 1800, demoSpeed: 1, modelScale: 16000, targetBattery: 100, communicationTimeoutMs: 15000 }, previousPolicy: null };
   if (empty) return data;
   data.users = [{ id: "demo-owner", name: "Alex Morgan", email: "owner@heliobay.demo", role: "owner", status: "active", phone: "", city: "Dhaka", savedStations: ["green-point"], preferences: { charging: true, wallet: true, offers: false } }, { id: "demo-admin", name: "Station Partner", email: "admin@heliobay.demo", role: "admin", status: "active", phone: "", city: "Dhaka", savedStations: [], preferences: { charging: true, wallet: true, offers: false } }];
   data.wallets = [{ userId: "demo-owner", balanceMinor: 50000 }, { userId: "demo-admin", balanceMinor: 0 }];

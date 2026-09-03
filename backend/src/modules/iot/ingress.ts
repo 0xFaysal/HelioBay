@@ -3,6 +3,7 @@ import type { IotConfig } from '../../config/iot.js';
 import { z } from 'zod';
 import { deviceMessage, parseTopic, verifySignature, thresholds, plugState, type DeviceMessage, type Telemetry } from './protocol.js';
 import { RealtimeBus } from '../realtime/bus.js';
+import {recordStationEnergy}from'../energy/service.js';
 const envelope = z.object({ payload: z.unknown(), signature: z.string().length(64) }).strict();
 export type SecretResolver = (reference: string) => string | undefined;
 export const resolveDeviceSecret: SecretResolver = ref => { const m = /^secret:\/\/env\/([A-Z][A-Z0-9_]+)$/.exec(ref); return m ? process.env[m[1]!] : undefined; };
@@ -89,7 +90,8 @@ export class DeviceIngress {
                 await tx.bay.update({ where: { id: bay.id }, data: { lastTelemetry: message, lastTelemetryAt: new Date(message.at), plugConnected: plug.connected, relayOn: message.relayOn, ...(!active ? { status: !bay.enabled ? 'DISABLED' : !message.online ? 'OFFLINE' : message.faultCodes.length || faults || message.relayOn ? 'FAULT' : plug.connected ? 'PLUGGED' : 'AVAILABLE' } : {}) } });
                 if (!current.lastSampleAt || Date.now() - current.lastSampleAt.getTime() >= this.config.TELEMETRY_SAMPLE_INTERVAL_MS || message.final) {
                     const session = message.sessionId ? await tx.chargingSession.findFirst({ where: { id: message.sessionId, deviceId: device.id, bayId: bay.id } }) : null;
-                    await tx.telemetrySample.create({ data: { deviceId: device.id, bayId: bay.id, sessionId: session?.id, sequence: BigInt(message.sequence), recordedAt: new Date(message.at), energyMWh: BigInt(message.energyMWh), powerW: message.chargingPowerW, voltageMv: message.chargingVoltageMv, currentMa: message.chargingCurrentMa, source: message.source, simulated: message.dataSource === 'SIMULATOR', dataSource: message.dataSource, measurements: message } });
+                    const sample=await tx.telemetrySample.create({ data: { deviceId: device.id, bayId: bay.id, sessionId: session?.id, sequence: BigInt(message.sequence), recordedAt: new Date(message.at), energyMWh: BigInt(message.energyMWh), powerW: message.chargingPowerW, voltageMv: message.chargingVoltageMv, currentMa: message.chargingCurrentMa, source: message.source, simulated: message.dataSource === 'SIMULATOR', dataSource: message.dataSource, measurements: message } });
+                    await recordStationEnergy(tx,device.stationId,sample,message);
                     await tx.device.update({ where: { id: device.id }, data: { lastSampleAt: new Date() } });
                 }
             }

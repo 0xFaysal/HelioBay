@@ -18,5 +18,7 @@ export function userRoutes(users: UserService, wallets: WalletService, sessions:
   r.get('/wallet/ledger', async (req, res) => { const p = pagination.parse(req.query); ok(res, await wallets.ledger(req.user!.id, p), 200, p); });
   r.get('/charging-sessions', async (req, res) => { const p = pagination.parse(req.query); ok(res, await sessions.list(req.user!.id, p), 200, p); });
   r.get('/payments', async (req, res) => {const p=pagination.parse(req.query);ok(res,(await users.payments(req.user!.id,p)).map(safePayment),200,p);});
+  r.get('/notifications',async(req,res)=>{const p=pagination.parse(req.query);ok(res,await users.notifications(req.user!.id,p),200,p);});
+  r.patch('/notifications/:notificationId/read',async(req,res)=>ok(res,await users.readNotification(req.user!.id,id.parse(req.params.notificationId))));
   return r;
 }

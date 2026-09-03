@@ -35,6 +35,7 @@ export class PaymentSettlement {
       const safeRisk=result.risk_level===0 || result.risk_level==='0';
       const updated=await tx.paymentTransaction.update({where:{id:transactionId},data:{status:safeRisk?'PAID':'RISK_REVIEW',providerReference:valId,verifiedAt:safeRisk?new Date():null,lastCheckedAt:new Date(),lastErrorCode:null,riskLevel:safeRisk?0:1,gatewayStatus:result.status}});
       if(safeRisk) await postLedger(tx,{userId:current.userId,actorId:current.userId,kind:'TOP_UP',amountMinor:current.amountMinor,key:`topup:${current.id}`,hash:fingerprint({paymentId:current.id,amountMinor:current.amountMinor}),description:'SSLCOMMERZ Sandbox Credit top-up',paymentId:current.id,isSandbox:true,metadata:{provider:'SSLCOMMERZ',environment:'sandbox'}});
+      if(safeRisk)await tx.notification.upsert({where:{userId_type_reference:{userId:current.userId,type:'PAYMENT_VERIFIED',reference:current.id}},create:{userId:current.userId,type:'PAYMENT_VERIFIED',title:'Credits added',message:`Verified Sandbox top-up: ${current.amountMinor.toString()} poisha.`,reference:current.id},update:{}});
       return safePayment(updated);
     });
   }

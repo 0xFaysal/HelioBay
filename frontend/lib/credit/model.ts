@@ -20,8 +20,9 @@ export const ledgerSchema = z.object({ id, userId: id, kind: z.enum(["top-up", "
 export const paymentSchema = z.object({ id, userId: id, amountMinor: minor.min(1000), status: z.enum(["pending", "validating", "verified", "failed", "cancelled", "expired", "risk-review", "reversed"]), sandbox: z.boolean(), providerReference: z.string().max(200).optional(), createdAt: iso, verifiedAt: iso.optional(), requestId: id, demoOutcome: z.enum(["success", "failure", "cancel", "pending"]).optional(), submittedAt: iso.optional() });
 export const policySchema = z.object({ maxTopupMinor: minor.min(1000), defaultTariffMinor: minor.min(1), demoSpeed: z.union([z.literal(1), z.literal(10), z.literal(60)]), modelScale: integer.min(1).max(50000), targetBattery: percent.min(50), communicationTimeoutMs: integer.min(5000).max(120000) });
 export const faultSchema = z.object({ id, stationId: id, bayId: id.optional(), deviceId: id, severity: z.enum(["warning", "critical"]), message: z.string(), status: z.enum(["open", "acknowledged", "resolved"]), at: iso, note: z.string() });
+export const notificationSchema=z.object({id,userId:id,type:z.string(),title:z.string(),message:z.string(),reference:z.string().optional(),readAt:iso.optional(),createdAt:iso});
 export const auditSchema = z.object({ id, actorId: id, action: z.string(), reference: id, reason: z.string(), at: iso });
-export const snapshotSchema = z.object({ revision: integer, lastTick: iso, energy: z.array(stationEnergySchema).default([]), users: z.array(userSchema), vehicles: z.array(vehicleSchema), stations: z.array(stationSchema), bays: z.array(baySchema), devices: z.array(deviceSchema), wallets: z.array(walletSchema), ledger: z.array(ledgerSchema), payments: z.array(paymentSchema), sessions: z.array(sessionSchema), commands: z.array(commandSchema), faults: z.array(faultSchema), audit: z.array(auditSchema), policy: policySchema, previousPolicy: policySchema.nullable() });
+export const snapshotSchema = z.object({ revision: integer, lastTick: iso, energy: z.array(stationEnergySchema).default([]), users: z.array(userSchema), vehicles: z.array(vehicleSchema), stations: z.array(stationSchema), bays: z.array(baySchema), devices: z.array(deviceSchema), wallets: z.array(walletSchema), ledger: z.array(ledgerSchema), payments: z.array(paymentSchema), sessions: z.array(sessionSchema), commands: z.array(commandSchema), faults: z.array(faultSchema), notifications:z.array(notificationSchema).default([]), audit: z.array(auditSchema), policy: policySchema, previousPolicy: policySchema.nullable() });
 export type User = z.infer<typeof userSchema>;
 // Reject simulated telemetry or impossible monetary state at the API boundary.
 export const apiSnapshotSchema = snapshotSchema.refine(data =>
@@ -37,6 +38,7 @@ export type Session = z.infer<typeof sessionSchema>;
 export type Command = z.infer<typeof commandSchema>;
 export type Ledger = z.infer<typeof ledgerSchema>;
 export type Payment = z.infer<typeof paymentSchema>;
+export type Notification=z.infer<typeof notificationSchema>;
 export type Policy = z.infer<typeof policySchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;
 export type StopReason = typeof stopReasons[number];

@@ -55,7 +55,7 @@ export function PlatformRuntime() {
             const data=event.data;
             const candidate=sessionEvent.safeParse(data&&typeof data==="object"&&"session" in data?data.session:data);
             if(candidate.success)pending.add(candidate.data.id);
-            if(event.type==="session.stopped")toast.info("Charging stopped. Checking the final meter and receipt.");
+            if(event.type==="session.stopped"){toast.info("Charging stopped. Checking the final meter and receipt.");setTimeout(()=>void refresh(),500);}
             if(event.type==="credit.warning")toast.warning("Your session credit limit is nearly reached.");
             if(event.type==="payment.updated"||event.type==="wallet.updated")void refresh();
           }catch{useCreditStore.setState({connection:"Unrecognized realtime message · checking current status"});}
