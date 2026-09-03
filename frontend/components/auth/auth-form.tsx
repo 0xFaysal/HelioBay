@@ -27,10 +27,10 @@ export function AuthForm(
   }
 ) {
   const router = useRouter();
-  const { loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const googlePending = useRef(false);
   const [googleBusy, setGoogleBusy] = useState(false);
-  const [redirectReady, setRedirectReady] = useState(false);
+  const [redirectDestination, setRedirectDestination] = useState<string | null>(null);
   const [checkingRedirect, setCheckingRedirect] = useState(firebaseConfigured);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -59,13 +59,30 @@ export function AuthForm(
 
   useEffect(() => {
     let active = true;
-    void authService.completeGoogleRedirect().then(result => {
-      if (active && result) router.replace(result.destination);
-    }).catch(error => { if (active) setError(authError(error)); }).finally(() => {
-      if (active) { setCheckingRedirect(false); setRedirectReady(authService.googleRedirectReady()); }
-    });
-    return () => { active = false; };
-  }, [router]);
+    const restore = () => {
+      void authService.completeGoogleRedirect().then(result => {
+        if (active && result) setRedirectDestination(result.destination);
+      }).catch(error => { if (active) setError(authError(error)); }).finally(() => {
+        if (active) setCheckingRedirect(false);
+      });
+    };
+    const resumed = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      // Browser Back can restore this document with its old pending button state.
+      googlePending.current = false;
+      setGoogleBusy(false); setBusy(false); setCheckingRedirect(true);
+      restore();
+    };
+    restore();
+    window.addEventListener("pageshow", resumed);
+    return () => { active = false; window.removeEventListener("pageshow", resumed); };
+  }, []);
+
+  // Wait for the auth provider to publish the Firebase user before entering a
+  // protected route; otherwise the guard can bounce a successful login back.
+  useEffect(() => {
+    if (redirectDestination && user && !user.demo && !authLoading) router.replace(redirectDestination);
+  }, [redirectDestination, user, authLoading, router]);
 
   async function submit(values: z.infer<typeof schema>) {
     setError("");
@@ -92,7 +109,7 @@ export function AuthForm(
     }
   }
 
-  async function google(strategy: "popup" | "redirect" = "popup") {
+  async function google() {
     if (googlePending.current) return;
     googlePending.current = true;
     setGoogleBusy(true);
@@ -100,11 +117,10 @@ export function AuthForm(
     setError("");
 
     try {
-      const result = await authService.google(role === "admin" ? "/admin" : destination, strategy);
-      if (result) router.push(role === "admin" ? "/admin" : destination);
+      await authService.google(role === "admin" ? "/admin" : destination);
     } catch (e) {
       setError(authError(e));
-    } finally {
+      // On success Firebase navigates away. Keep the button locked until then.
       googlePending.current = false;
       setGoogleBusy(false);
       setBusy(false);
@@ -163,8 +179,8 @@ export function AuthForm(
           {!forgot && role === "owner" && <>
             <div className="flex items-center gap-4 my-5 text-[10px] muted"><div className="h-px bg-border flex-1" />OR<div className="h-px bg-border flex-1" /></div>
             <Button type="button" variant="outline" className="w-full !h-12" onClick={() => void google()} disabled={busy || authLoading || checkingRedirect || !firebaseConfigured}><span aria-hidden="true" className="font-bold text-base">G</span>Continue with Google</Button>
-            {redirectReady && <Button type="button" variant="link" className="w-full mt-2 text-xs" onClick={() => void google("redirect")} disabled={busy || authLoading || checkingRedirect}>Use Google in this tab instead</Button>}
-            {(checkingRedirect || googleBusy) && <p role="status" className="text-xs muted mt-3">{checkingRedirect ? "Restoring Google sign-in…" : "Opening Google sign-in…"}</p>}
+            <p className="text-xs muted mt-3">Google sign-in opens securely in this tab. No popup required.</p>
+            {(checkingRedirect || googleBusy || redirectDestination) && <p role="status" className="text-xs muted mt-3">{checkingRedirect || redirectDestination ? "Completing Google sign-in…" : "Taking you to Google…"}</p>}
           </>}
           {!firebaseConfigured && <p className="notice notice-warning mt-5">Firebase isn’t configured. Email and Google sign-in need project configuration; demo access below is browser-local only.</p>}
           {demoEnabled && <div className="border rounded-xl p-4 mt-5 bg-muted">

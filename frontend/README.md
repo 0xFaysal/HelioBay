@@ -101,7 +101,7 @@ Reusable earlier components, legacy rules and tests remain in Git, but are not i
 
 Enable Email/Password and Google providers in Firebase. Authorize localhost and your deployment domain. Admin access uses the Firebase custom claim `role: "admin"`, set only by a trusted backend. The SDK initializes once, manages credentials and attaches fresh ID tokens to REST requests. Client route protection is UX, **not backend authorization**.
 
-For `auth/popup-blocked` after Vercel hosting, follow [Google sign-in on Vercel](docs/FIREBASE-VERCEL.md). Same-tab Google recovery requires the production site as `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, Firebase domain authorization and the Google OAuth redirect URI. The frontend includes a same-origin Firebase helper proxy; existing Firebase keys remain unchanged.
+Google sign-in is popup-free: **Continue with Google** uses a full-page redirect. On HTTPS the client automatically uses the actual website hostname as its Firebase auth domain, with a same-origin auth helper proxy. Firebase must authorize that hostname, and Google must allow `https://HOST/__/auth/handler`. See [Google sign-in on Vercel](docs/FIREBASE-VERCEL.md) for these required external settings and testing instructions. Existing Firebase keys remain unchanged.
 
 Use APP_MODE=api with Firebase and both backend URLs for integration. Rebuild after changing public variables. No SSLCOMMERZ store ID/password, Firebase Admin private key, MQTT password or backend secret belongs in NEXT_PUBLIC variables. The backend creates the gateway session.
 

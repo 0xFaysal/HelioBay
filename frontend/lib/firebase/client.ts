@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { sameOriginAuthDomain } from "./auth-routing";
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,5 +18,11 @@ export function firebaseAuth() {
   if (!firebaseConfigured)
     throw new Error("Firebase is not configured. Use the explicit demo option, or configure Firebase in .env.local.");
 
-  return getAuth(getApps().length ? getApp() : initializeApp(config));
+  return getAuth(getApps().length ? getApp() : initializeApp({
+    ...config,
+    // Vercel serves /__/auth/* through our Firebase-only reverse proxy. Derive
+    // the auth origin from the actual HTTPS page, never a stale build-time host.
+    // Firebase/Google still enforce their server-side domain/redirect allowlists.
+    authDomain: sameOriginAuthDomain(config.authDomain, typeof window === "undefined" ? undefined : window.location.origin),
+  }));
 }

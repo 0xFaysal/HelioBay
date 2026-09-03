@@ -13,6 +13,17 @@ export function canUseGoogleRedirect(authDomain: string | undefined, origin: str
   } catch { return false; }
 }
 
+/** The Next.js auth helper proxy must share storage with the page restoring login. */
+export function sameOriginAuthDomain(configuredDomain: string | undefined, origin?: string) {
+  if (origin) {
+    try {
+      const url = new URL(origin);
+      if (url.protocol === "https:") return url.host;
+    } catch { /* Server rendering and invalid origins keep the supplied config. */ }
+  }
+  return configuredDomain;
+}
+
 export function safeAuthDestination(value: string | undefined) {
   if (!value || !value.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u0020]/.test(value)) return "/dashboard";
   return value;

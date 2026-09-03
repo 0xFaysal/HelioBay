@@ -1,64 +1,77 @@
-# Google sign-in on Vercel
+# Popup-free Google sign-in on Vercel
 
-## What was fixed
+## Implementation
 
-The original Google action only used `signInWithPopup` and displayed a raw `auth/popup-blocked` error. The browser, not Vercel's server, denies a popup when its policy or embedded browser disallows it.
+**Continue with Google** calls Firebase's full-page signInWithRedirect. There is no popup call or popup fallback. Browsers that block new windows do not prevent this flow.
 
-- Google starts directly in a user click; duplicate clicks are ignored and the button waits for auth restoration.
-- A blocked popup falls back to `signInWithRedirect` **when the configured authDomain is this exact HTTPS website**.
-- In that configuration, an explicit **Use Google in this tab instead** action is also available.
-- Redirect completion uses Firebase `getRedirectResult`, preserves a sanitized return path and handles cancellations/errors. Only the path and a 15-minute timestamp are stored in this tab; no tokens are stored by this helper.
-- Closed popups and network/configuration errors do not trigger automatic redirects.
-- If same-domain redirect is not configured, a blocked popup gives actionable allow-popup/email/browser instructions instead of a broken cross-origin redirect loop.
+On HTTPS, the Firebase client uses the page's actual hostname (including a nonstandard port) as its auth domain. It no longer depends on a stale build-time NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN value matching the Vercel hostname. The Next.js rewrite proxies all /__/auth/* requests to the configured project's Firebase Hosting auth helpers, with Cache-Control: no-store. The upstream is derived only from a validated Firebase project ID, never a visitor-supplied proxy destination.
 
-## Required production configuration
+This follows Firebase's same-origin reverse-proxy approach, avoiding third-party storage partitioning on return from Google. **It does not bypass Firebase or Google domain authorization.** Each hostname used for Google login must be authorized externally.
 
-Use a stable Vercel production hostname or your custom domain. Replace `YOUR_HOST` below with that exact hostname, without a scheme or path. Do not use a changing deployment-specific preview hostname.
+The flow saves only a sanitized destination and timestamp in tab-local storage. Firebase handles the OAuth state, tokens, credential exchange and user persistence. Duplicate clicks stay locked during navigation. After the return, the app waits for the auth provider to publish the real Firebase user before entering the protected destination. Failed/cancelled attempts clear the app marker and allow an explicit retry, without an automatic loop.
+
+## Required external configuration
+
+Use the stable production hostname or your custom domain, not a changing deployment-specific preview URL. Replace YOUR_HOST with that exact hostname, without a scheme or path.
 
 1. **Firebase Console → Authentication → Sign-in method**: enable Google.
-2. **Firebase Console → Authentication → Settings → Authorized domains**: add `YOUR_HOST` (retain the existing Firebase domains).
+2. **Firebase Console → Authentication → Settings → Authorized domains**: add YOUR_HOST. Retain the existing Firebase domains.
 3. **Google Cloud Console → APIs & Services → Credentials → the web OAuth client used by Firebase Google sign-in**: add this Authorized redirect URI, retaining existing URIs:
 
-   `https://YOUR_HOST/__/auth/handler`
+   https://YOUR_HOST/__/auth/handler
 
-4. **Vercel → HelioBay project → Settings → Environment Variables → Production**:
+4. **Vercel → HelioBay project → Settings → Environment Variables → Production**: keep the API key, project ID and app ID for that same Firebase project. NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN can retain Firebase's supplied PROJECT_ID.firebaseapp.com value; the HTTPS browser now selects its same-origin helper automatically. Set NEXT_PUBLIC_SITE_URL=https://YOUR_HOST for canonical metadata.
+5. Deploy the updated frontend. Next.js embeds public settings in the build, so environment changes also require a new deployment.
 
-   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=YOUR_HOST`
-   - Keep the existing Firebase API key, project ID and app ID for the same Firebase project.
-   - Set `NEXT_PUBLIC_SITE_URL=https://YOUR_HOST` for canonical metadata.
+The app is in frontend/; retain that Vercel root directory. Do not put Firebase Admin private keys, OAuth client secrets or backend secrets in public variables.
 
-5. Redeploy the frontend. Next.js embeds public configuration at build time; updating environment variables alone does not update an existing deployment.
+If deployment protection or middleware covers auth helpers, allow /__/auth/* to operate without an application sign-in loop. A helper request must remain on the website's origin: a proxy/rewrite is correct; a 302 redirect to firebaseapp.com is not. Preview domains also need their own Firebase authorization and Google redirect URI.
 
-The frontend's `next.config.ts` transparently proxies `/__/auth/:path*` to `https://PROJECT_ID.firebaseapp.com/__/auth/:path*`, with `Cache-Control: no-store`. This must be a rewrite/proxy, **not a 302 redirect**. The destination is derived from the validated configured project ID, never a visitor-supplied hostname. It does not expose backend secrets or change the existing API/authentication rules.
+## Verify production
 
-If your Vercel project uses Deployment Protection or future middleware, allow Firebase's `/__/auth/*` helper paths to operate without a sign-in loop. Configure a stable preview hostname separately if Google sign-in is needed on previews. The recovery flow deliberately remains disabled when a preview origin does not match the configured authDomain.
+- Open the HTTPS production site directly in your browser.
+- Verify /__/auth/iframe serves Firebase helper content on the website's origin, not an app 404.
+- Click **Continue with Google**: the same tab must navigate to Google, then return to the requested owner page.
+- Repeat with popups blocked. No new window should be attempted.
+- Refresh after login, sign out, then repeat.
+- Cancel at Google and confirm a new attempt is possible.
+- redirect_uri_mismatch means the URI in step 3 is missing or differs.
+- auth/unauthorized-domain means step 2 is missing, or the visitor is on an unconfigured preview/custom domain.
+- A helper 404/401 or deployment sign-in page means the rewrite or deployment protection needs correction.
 
-## Check the deployed fix
+These checks require a real Google account and access to the deployment configuration. Passing local fixtures does not certify production OAuth.
 
-- Visit the production site directly in a browser, not inside a dashboard preview/iframe.
-- Open `/__/auth/iframe` and verify it serves Firebase helper content on the **same site origin**, not the app's 404 or a redirect to firebaseapp.com.
-- Confirm normal **Continue with Google** succeeds.
-- Block popups for the site and try again: Google should open in the same tab and return to the requested owner page.
-- Test **Use Google in this tab instead**, cancel/back navigation, refresh after login and logout.
-- If Google reports `redirect_uri_mismatch`, verify the exact URI in step 3. `auth/unauthorized-domain` means step 2 is missing or the visitor is on a different hostname. These are separate from `auth/popup-blocked`.
+## Local development
 
-Local development can retain `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=PROJECT_ID.firebaseapp.com` with `localhost` authorized in Firebase. Popup sign-in continues to work; same-domain redirect recovery is HTTPS-only. A browser that completely denies popups will offer email sign-in until the production redirect configuration is completed.
+Email and explicit demo sign-in still work over ordinary local HTTP. Popup-free Google login requires HTTPS because Firebase's browser helper URL uses HTTPS:
+
+1. Run npm run dev -- --experimental-https (Next.js may need permission to generate/trust a local certificate).
+2. Add localhost to Firebase's authorized domains.
+3. Add the exact https://localhost:PORT/__/auth/handler URI to the same Google OAuth client.
+4. Open the local HTTPS URL.
+
+There is deliberately no HTTP-to-cross-origin redirect or popup workaround.
+
+## Automated regression coverage
+
+- npm test: redirect ordering, zero popup code, stale-domain replacement, unsafe-origin rejection, storage failures, explicit retries, restricted helper proxy, safe/expiring destinations and actionable configuration errors.
+- npm run build, npm run typecheck, npm run lint: frontend build and static checks.
+- With a configured local production server, set TEST_BASE_URL=http://localhost:3003 and TEST_GOOGLE_REDIRECT=true, then run npx playwright test google-auth.spec.ts.
+
+The browser tests serve the actual frontend on a test-only HTTPS origin and run the installed Firebase SDK. They fixture only Google's helper bridge and Firebase REST responses. They verify same-tab navigation with window.open blocked, real SDK redirect-result processing, credential exchange, auth-provider synchronization, protected destination, refresh persistence, cancellation/retry, mobile overflow, and missing-domain errors. Test tokens are synthetic, never accepted by the real backend, and no test hooks are shipped in application code.
+
+Generated Playwright traces are excluded from lint because they contain bundled third-party JavaScript.
+
+## Deployment access limitation
+
+The Vercel connector returned **403 Forbidden** for the existing helio-bay project during this patch, and no signed-in browser or live production hostname was provided. No Firebase/Google allowlists or Vercel account settings were changed. The code is ready for the external setup above; successful live Google login must still be verified.
+
+A read-only check of the configured Firebase project's public settings returned only localhost, heliobay.firebaseapp.com and heliobay.web.app as authorized domains. No Vercel/custom website hostname was authorized at verification time. Adding the actual production hostname in Firebase and its exact callback URI in Google is required, not optional.
+
+Patch checks passed: 54 unit tests, 4 Google SDK browser fixture tests (including browser Back recovery), the public/owner/admin browser smoke test, full lint, TypeScript and the production build. Real Google OAuth and Vercel deployment readiness are separate, still-unverified checks.
 
 ## References
 
 - [Firebase redirect best practices: proxy auth requests](https://firebase.google.com/docs/auth/web/redirect-best-practices#proxy-requests)
 - [Firebase Google authentication](https://firebase.google.com/docs/auth/web/google-signin)
 - [Next.js external rewrites](https://nextjs.org/docs/app/api-reference/config/next-config-js/rewrites#rewriting-to-an-external-url)
-
-No live account credentials or OAuth permissions were changed by the frontend patch. Hosted end-to-end Google login must be verified after the production settings above are applied.
-
-## Patch verification
-
-- Full frontend lint, TypeScript and production build: passed.
-- Unit suite: 53 passed, including 8 Google flow/routing/state/error regressions.
-- Browser smoke: public, owner and admin pages passed.
-- Forced popup-block test: passed with the installed Firebase SDK and a mocked Google iframe bridge; exactly one popup attempt, actionable error, enabled retry, working email validation, and no mobile overflow or page errors. The remote helper transport is isolated in this test; it does not claim successful live Google OAuth.
-
-To reproduce the popup SDK/UI check against a local configured server, set `TEST_BASE_URL` to its URL and `TEST_GOOGLE_POPUP=true`, then run `npx playwright test google-auth.spec.ts`. It is opt-in because public Firebase configuration is required. Run `npm test` for the deterministic suite.
-
-The Vercel connector returned no accessible teams and no deployment link was available, so production environment variables, OAuth allowlists and deployment status were not changed or verified.

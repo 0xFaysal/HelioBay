@@ -2,7 +2,6 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
@@ -37,38 +36,30 @@ export const authService = {
     return result;
   },
 
-  googleRedirectReady() {
-    return firebaseConfigured && typeof window !== "undefined" && canUseGoogleRedirect(firebaseAuth().config.authDomain, window.location.origin);
-  },
-
-  google(destination = "/dashboard", strategy: "popup" | "redirect" = "popup") {
+  google(destination = "/dashboard") {
     const auth = firebaseAuth();
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
     return googleSignIn({
-      strategy,
       redirectReady: canUseGoogleRedirect(auth.config.authDomain, window.location.origin),
-      popup: () => signInWithPopup(auth, provider),
-      redirect: async () => {
-        try { rememberGoogleRedirect(window.sessionStorage, destination); }
-        catch { throw Object.assign(new Error("Browser storage is unavailable."), { code: "auth/web-storage-unsupported" }); }
-        try { await signInWithRedirect(auth, provider); }
-        catch (error) { clearGoogleRedirect(window.sessionStorage); throw error; }
-      },
+      remember: () => rememberGoogleRedirect(window.sessionStorage, destination),
+      clear: () => clearGoogleRedirect(window.sessionStorage),
+      redirect: () => signInWithRedirect(auth, provider),
     });
   },
 
-  completeGoogleRedirect() {
+  async completeGoogleRedirect() {
     if (!firebaseConfigured) return Promise.resolve(null);
-    // Share the completion across React Strict Mode effects. Do not consume twice.
+    const pending = pendingGoogleRedirect(window.sessionStorage);
+    if (!pending) return Promise.resolve(null);
+    // Share only an actual completion across Strict Mode effects, not the initial
+    // no-redirect visit. A cancelled attempt must not prevent a later attempt.
     return redirectCompletion ??= (async () => {
-      const pending = pendingGoogleRedirect(window.sessionStorage);
-      if (!pending) return null;
       try {
         const result = await getRedirectResult(firebaseAuth());
         if (!result) throw new Error("Google sign-in did not complete. Please try again or sign in with email.");
         return { destination: pending.destination };
-      } finally { clearGoogleRedirect(window.sessionStorage); }
+      } finally { clearGoogleRedirect(window.sessionStorage); redirectCompletion = undefined; }
     })();
   },
 

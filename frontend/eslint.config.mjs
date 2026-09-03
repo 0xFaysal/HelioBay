@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated Playwright traces contain bundled third-party JavaScript.
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 
