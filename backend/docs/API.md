@@ -72,4 +72,4 @@ Every successful admin mutation creates an atomic audit entry with actor, action
 
 ## Deferred integration
 
-No payment, top-up, session-start, command publishing, telemetry ingestion or WebSocket route is exposed yet. Interfaces in modules/payments and modules/telemetry define the next implementation boundaries. Future work must persist idempotency keys, verify gateway results, atomically reserve/settle credit, verify MQTT identity/ACKs, handle watchdogs, and adapt versioned responses to the frontend Snapshot schema. No demo payment or simulated device success is returned as production data.
+Prepaid wallet and Sandbox payment endpoints are documented in [SSLCOMMERZ Sandbox](SSLCOMMERZ-SANDBOX.md), including callback validation, idempotency, reconciliation and admin adjustments. Session-start/stop, command publishing, telemetry ingestion and WebSocket routes remain future work. The frontend Snapshot adapter still requires integration with these versioned resource endpoints.

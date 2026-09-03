@@ -42,7 +42,7 @@ $env:TEST_DATABASE_URL='postgresql://heliobay:local_dev_only@localhost:5433/heli
 npm test
 ```
 
-See [API reference](docs/API.md), [verification results](docs/VERIFICATION.md), and [.env.example](.env.example) for configuration. Payment verification, wallet mutations, MQTT, charging start/stop, realtime snapshots and the frontend snapshot adapter are explicitly later work. This versioned resource API does not yet satisfy the frontend's older whole-platform Snapshot transport contract.
+See [API reference](docs/API.md), [verification results](docs/VERIFICATION.md), and [.env.example](.env.example) for configuration. Prepaid wallets, audited adjustments and SSLCOMMERZ Sandbox initiation/validation/IPN are implemented. See [Sandbox setup and manual testing](docs/SSLCOMMERZ-SANDBOX.md). MQTT, charging start/stop, realtime snapshots and the frontend snapshot adapter remain later work. This versioned resource API does not yet satisfy the frontend's older whole-platform Snapshot transport contract.
 
 ## Units and guarantees
 

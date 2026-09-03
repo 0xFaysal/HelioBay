@@ -1,3 +1,7 @@
+# Latest wallet/payment verification — 2026-09-03
+
+91 tests passed across 8 files, including PostgreSQL financial concurrency and mocked SSLCOMMERZ HTTP tests. Lint, type checking, Prisma validation, migration application and production build passed. See [payment verification and manual procedure](SSLCOMMERZ-SANDBOX.md). No real Sandbox checkout was executed.
+
 # Verification record — 2026-09-03
 
 - Prisma CLI, client and PostgreSQL adapter: 7.10.0.
