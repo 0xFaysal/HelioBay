@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/credit-engine.test.ts tests/api-client.test.ts tests/energy.test.ts tests/receipts.test.ts",
+    "test": "node --experimental-strip-types --test tests/credit-engine.test.ts tests/api-client.test.ts tests/energy.test.ts tests/receipts.test.ts tests/google-auth.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

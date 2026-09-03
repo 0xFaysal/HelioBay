@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AssetImage } from "@/components/shared/asset-image";
 import { PublicShell } from "@/components/shared/public-shell";
+import { useAuth } from "@/components/shared/providers";
+import { safeAuthDestination } from "@/lib/firebase/auth-routing";
 
 export function AuthForm(
   {
@@ -25,6 +27,11 @@ export function AuthForm(
   }
 ) {
   const router = useRouter();
+  const { loading: authLoading } = useAuth();
+  const googlePending = useRef(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [redirectReady, setRedirectReady] = useState(false);
+  const [checkingRedirect, setCheckingRedirect] = useState(firebaseConfigured);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -48,7 +55,17 @@ export function AuthForm(
     }
   });
 
-  const destination = next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : "/dashboard";
+  const destination = safeAuthDestination(next);
+
+  useEffect(() => {
+    let active = true;
+    void authService.completeGoogleRedirect().then(result => {
+      if (active && result) router.replace(result.destination);
+    }).catch(error => { if (active) setError(authError(error)); }).finally(() => {
+      if (active) { setCheckingRedirect(false); setRedirectReady(authService.googleRedirectReady()); }
+    });
+    return () => { active = false; };
+  }, [router]);
 
   async function submit(values: z.infer<typeof schema>) {
     setError("");
@@ -75,16 +92,21 @@ export function AuthForm(
     }
   }
 
-  async function google() {
+  async function google(strategy: "popup" | "redirect" = "popup") {
+    if (googlePending.current) return;
+    googlePending.current = true;
+    setGoogleBusy(true);
     setBusy(true);
     setError("");
 
     try {
-      await authService.google();
-      router.push(role === "admin" ? "/admin" : destination);
+      const result = await authService.google(role === "admin" ? "/admin" : destination, strategy);
+      if (result) router.push(role === "admin" ? "/admin" : destination);
     } catch (e) {
       setError(authError(e));
     } finally {
+      googlePending.current = false;
+      setGoogleBusy(false);
       setBusy(false);
     }
   }
@@ -102,7 +124,7 @@ export function AuthForm(
           </div>
         </div>
         <div className="auth-form">
-          <div className="eyebrow mb-5">{forgot ? "ACCOUNT RECOVERY" : register ? "JOIN HELIOBAY" : "YOUR ENERGY, CONNECTED"}</div>
+          <div className="eyebrow mb-5">{forgot ? "ACCOUNT RECOVERY" : register ? "JOIN HelioBay" : "YOUR ENERGY, CONNECTED"}</div>
           <h1>{title}</h1>
           <p className="text-sm muted mt-3 mb-7">{forgot ? "Enter your email and we’ll send a password reset link." : register ? "Create your EV Owner account in a few simple steps." : "Sign in to your charging companion."}</p>
           {sent ? <div className="notice" role="status">If an account exists for this email, a reset link is on its way. Check your inbox and spam folder.</div> : <form onSubmit={form.handleSubmit(submit)} noValidate>
@@ -140,7 +162,9 @@ export function AuthForm(
           </form>}
           {!forgot && role === "owner" && <>
             <div className="flex items-center gap-4 my-5 text-[10px] muted"><div className="h-px bg-border flex-1" />OR<div className="h-px bg-border flex-1" /></div>
-            <Button variant="outline" className="w-full !h-12" onClick={google} disabled={busy}><span className="font-bold text-base">G</span>Continue with Google</Button>
+            <Button type="button" variant="outline" className="w-full !h-12" onClick={() => void google()} disabled={busy || authLoading || checkingRedirect || !firebaseConfigured}><span aria-hidden="true" className="font-bold text-base">G</span>Continue with Google</Button>
+            {redirectReady && <Button type="button" variant="link" className="w-full mt-2 text-xs" onClick={() => void google("redirect")} disabled={busy || authLoading || checkingRedirect}>Use Google in this tab instead</Button>}
+            {(checkingRedirect || googleBusy) && <p role="status" className="text-xs muted mt-3">{checkingRedirect ? "Restoring Google sign-in…" : "Opening Google sign-in…"}</p>}
           </>}
           {!firebaseConfigured && <p className="notice notice-warning mt-5">Firebase isn’t configured. Email and Google sign-in need project configuration; demo access below is browser-local only.</p>}
           {demoEnabled && <div className="border rounded-xl p-4 mt-5 bg-muted">

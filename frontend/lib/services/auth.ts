@@ -3,6 +3,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   sendPasswordResetEmail,
   signOut,
@@ -13,6 +15,12 @@ import { firebaseAuth, firebaseConfigured, demoEnabled } from "@/lib/firebase/cl
 import { demoAccounts } from "@/lib/demo/seed";
 import { useCreditStore as useDemoStore } from "@/store/credit-store";
 import type { Role } from "@/types";
+import { canUseGoogleRedirect } from "@/lib/firebase/auth-routing";
+import { googleSignIn } from "@/lib/firebase/google-flow";
+import { clearGoogleRedirect, pendingGoogleRedirect, rememberGoogleRedirect } from "@/lib/firebase/redirect-state";
+export { authError } from "@/lib/firebase/auth-errors";
+
+let redirectCompletion: Promise<{ destination: string } | null> | undefined;
 
 export const authService = {
   async login(email: string, password: string) {
@@ -29,8 +37,39 @@ export const authService = {
     return result;
   },
 
-  async google() {
-    return signInWithPopup(firebaseAuth(), new GoogleAuthProvider());
+  googleRedirectReady() {
+    return firebaseConfigured && typeof window !== "undefined" && canUseGoogleRedirect(firebaseAuth().config.authDomain, window.location.origin);
+  },
+
+  google(destination = "/dashboard", strategy: "popup" | "redirect" = "popup") {
+    const auth = firebaseAuth();
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    return googleSignIn({
+      strategy,
+      redirectReady: canUseGoogleRedirect(auth.config.authDomain, window.location.origin),
+      popup: () => signInWithPopup(auth, provider),
+      redirect: async () => {
+        try { rememberGoogleRedirect(window.sessionStorage, destination); }
+        catch { throw Object.assign(new Error("Browser storage is unavailable."), { code: "auth/web-storage-unsupported" }); }
+        try { await signInWithRedirect(auth, provider); }
+        catch (error) { clearGoogleRedirect(window.sessionStorage); throw error; }
+      },
+    });
+  },
+
+  completeGoogleRedirect() {
+    if (!firebaseConfigured) return Promise.resolve(null);
+    // Share the completion across React Strict Mode effects. Do not consume twice.
+    return redirectCompletion ??= (async () => {
+      const pending = pendingGoogleRedirect(window.sessionStorage);
+      if (!pending) return null;
+      try {
+        const result = await getRedirectResult(firebaseAuth());
+        if (!result) throw new Error("Google sign-in did not complete. Please try again or sign in with email.");
+        return { destination: pending.destination };
+      } finally { clearGoogleRedirect(window.sessionStorage); }
+    })();
   },
 
   async forgot(email: string) {
@@ -52,21 +91,3 @@ export const authService = {
     useDemoStore.getState().setAccount(null);
   }
 };
-
-export function authError(error: unknown) {
-  const code = (error as {
-    code?: string;
-  })?.code;
-
-  const messages: Record<string, string> = {
-    "auth/invalid-credential": "Email or password is incorrect.",
-    "auth/email-already-in-use": "An account already exists with this email.",
-    "auth/weak-password": "Choose a stronger password with at least 8 characters.",
-    "auth/popup-closed-by-user": "Google sign-in was closed. Please try again.",
-    "auth/too-many-requests": "Too many attempts. Please wait and try again.",
-    "auth/network-request-failed": "Check your connection and try again.",
-    "auth/unauthorized-domain": "This domain must be added to Firebase Authentication authorized domains."
-  };
-
-  return code && messages[code] || (error instanceof Error ? error.message : "Something went wrong. Please try again.");
-}
