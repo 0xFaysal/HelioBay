@@ -1,2 +1,5 @@
 node_modules/
 dist/
+src/generated/
+.npm-cache/
+projectHelioBaybackend.npm-cache
