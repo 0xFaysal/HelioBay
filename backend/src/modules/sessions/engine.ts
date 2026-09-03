@@ -129,7 +129,7 @@ export class ChargingEngine {
   }
   async telemetry(deviceId:string,t:Telemetry) {
     const active=await this.db.chargingSession.findFirst({where:{deviceId,bay:{code:t.bayId},completedAt:null,status:{notIn:['COMPLETED','FAILED']}}});
-    if(active&&active.id!==t.sessionId){await this.stop(active.id,active.ownerId,'SAFETY_FAULT',`stop:${active.id}`,`identity:${active.id}`,true);return;}
+    if(active&&active.id!==t.sessionId&&new Date(t.at)>active.createdAt&&(t.relayOn||(active.status==='CHARGING'&&new Date(t.at)>(active.startedAt??active.createdAt)))){await this.stop(active.id,active.ownerId,'SAFETY_FAULT',`stop:${active.id}`,`identity:${active.id}`,true);return;}
     if(!t.sessionId)return;
     const found=await this.db.chargingSession.findFirst({where:{id:t.sessionId,deviceId,bay:{code:t.bayId}}});if(!found)return;
     const result=await this.db.$transaction(async tx=>{
@@ -208,6 +208,7 @@ export class ChargingEngine {
     if(session)this.notify('command.timed_out',session,{commandId:command.id,session});
   }
 }
+
 
 
 
