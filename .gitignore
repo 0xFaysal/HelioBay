@@ -3,6 +3,10 @@
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.local.example
+**/.pio/
+hardware/heliobay/include/secrets.h
+!hardware/heliobay/include/secrets.example.h
 **/.next/
 **/coverage/
 **/test-results/
