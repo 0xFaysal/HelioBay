@@ -11,29 +11,20 @@ HelioBay is a single-repository, full-stack EV charging platform. It contains a 
 
 ## Local full stack
 
-Use Node 22.12+ (Node 24 recommended) and Docker Desktop.
+Use Docker Desktop on Windows 10. From the repository root:
 
 ```powershell
-cd backend
-npm ci
-Copy-Item .env.example .env
-docker compose up -d
-npm run db:generate
-npm run db:migrate
-npm run db:seed
-npm run dev
+.\scripts\setup-local.ps1
+.\scripts\start-local.ps1 -Simulator # omit -Simulator when using the physical ESP32
 ```
 
-In a second terminal:
+Open `http://localhost:8080`. Stop without deleting data:
 
 ```powershell
-cd frontend
-npm ci
-Copy-Item .env.example .env.local
-npm run dev
+.\scripts\stop-local.ps1
 ```
 
-Set `NEXT_PUBLIC_APP_MODE=api`, `NEXT_PUBLIC_API_BASE_URL=http://localhost:4000`, and `NEXT_PUBLIC_WS_URL=ws://localhost:4000/api/v1/realtime`. Configure the Firebase variables from the same Firebase Web app used by the backend project. See the package READMEs for complete variables and commands.
+See [`LOCAL_SETUP_BN.md`](LOCAL_SETUP_BN.md) for local accounts, LAN/ESP32 configuration, firewall rules, simulator scenarios, backups, troubleshooting, and the hardware smoke test.
 
 For a browser-only demonstration, set `NEXT_PUBLIC_APP_MODE=demo`. Demo data, login, charging and payment simulation are explicit and are never a fallback for API failures.
 
