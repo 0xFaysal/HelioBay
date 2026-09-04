@@ -7,7 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Eye, EyeOff, ShieldCheck, LoaderCircle } from "lucide-react";
 import { authService, authError } from "@/lib/services/auth";
-import { demoEnabled, firebaseConfigured } from "@/lib/firebase/client";
+import { demoEnabled, firebaseConfigured, firebaseEmulatorEnabled } from "@/lib/firebase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AssetImage } from "@/components/shared/asset-image";
@@ -176,7 +176,7 @@ export function AuthForm(
               {!busy && <ArrowRight size={16} />}
             </Button>
           </form>}
-          {!forgot && role === "owner" && <>
+          {!forgot && role === "owner" && !firebaseEmulatorEnabled && <>
             <div className="flex items-center gap-4 my-5 text-[10px] muted"><div className="h-px bg-border flex-1" />OR<div className="h-px bg-border flex-1" /></div>
             <Button type="button" variant="outline" className="w-full !h-12" onClick={() => void google()} disabled={busy || authLoading || checkingRedirect || !firebaseConfigured}><span aria-hidden="true" className="font-bold text-base">G</span>Continue with Google</Button>
             <p className="text-xs muted mt-3">Google sign-in opens securely in this tab. No popup required.</p>

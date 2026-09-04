@@ -5,5 +5,6 @@ export function resolveMode(mode: string | undefined, enabled: string | undefine
 }
 export const appMode = resolveMode(process.env.NEXT_PUBLIC_APP_MODE, process.env.NEXT_PUBLIC_DEMO_MODE);
 export const isDemo = appMode === "demo";
-export const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
-export const wsUrl = process.env.NEXT_PUBLIC_WS_URL ?? "";
+const browserOrigin = typeof window === "undefined" ? "http://localhost:8080" : window.location.origin;
+export const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || browserOrigin;
+export const wsUrl = process.env.NEXT_PUBLIC_WS_URL || `${browserOrigin.replace(/^http/, "ws")}/api/v1/realtime`;

@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import { sameOriginAuthDomain } from "./auth-routing";
 
 const config = {
@@ -13,16 +13,23 @@ const config = {
 
 export const firebaseConfigured = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
 export const demoEnabled = process.env.NEXT_PUBLIC_APP_MODE === "demo";
+export const firebaseEmulatorEnabled = process.env.NEXT_PUBLIC_LOCAL_MODE === "true" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true";
+let emulatorConnected = false;
 
 export function firebaseAuth() {
   if (!firebaseConfigured)
     throw new Error("Firebase is not configured. Use the explicit demo option, or configure Firebase in .env.local.");
 
-  return getAuth(getApps().length ? getApp() : initializeApp({
+  const auth: Auth = getAuth(getApps().length ? getApp() : initializeApp({
     ...config,
     // Vercel serves /__/auth/* through our Firebase-only reverse proxy. Derive
     // the auth origin from the actual HTTPS page, never a stale build-time host.
     // Firebase/Google still enforce their server-side domain/redirect allowlists.
     authDomain: sameOriginAuthDomain(config.authDomain, typeof window === "undefined" ? undefined : window.location.origin),
   }));
+  if (firebaseEmulatorEnabled && typeof window !== "undefined" && !emulatorConnected) {
+    connectAuthEmulator(auth, `http://${window.location.hostname}:9099`, { disableWarnings: true });
+    emulatorConnected = true;
+  }
+  return auth;
 }

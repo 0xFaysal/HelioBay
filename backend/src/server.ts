@@ -16,7 +16,7 @@ const app = createApp(env, () => db.$queryRaw`SELECT 1`);
 const payments = readPaymentConfig();
 const logger=makeLogger(env.LOG_LEVEL);
 const iot=createIotRuntime(db,readIotConfig(),message=>logger.warn(message));
-mountApi(app, db, firebaseVerifier(env.FIREBASE_PROJECT_ID), new PaymentService(db, payments ? new SslcommerzGateway(payments) : null, payments),iot.engine);
+mountApi(app, db, firebaseVerifier(env.FIREBASE_PROJECT_ID), new PaymentService(db, payments?.PAYMENT_PROVIDER === 'sslcommerz' ? new SslcommerzGateway(payments) : null, payments),iot.engine);
 const server = finishApp(app).listen(env.PORT);
 const realtime=attachRealtime(server,db,firebaseVerifier(env.FIREBASE_PROJECT_ID),iot.bus,env.CORS_ORIGINS);
 iot.start();

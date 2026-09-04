@@ -6,7 +6,7 @@ import { SslcommerzGateway } from './modules/payments/gateway.js';
 import { PaymentService } from './modules/payments/service.js';
 import { PaymentSettlement } from './modules/payments/settlement.js';
 const env=readEnv(),config=readPaymentConfig();
-if(!config) throw new Error('SSLCOMMERZ Sandbox is not configured');
+if(!config || config.PAYMENT_PROVIDER!=='sslcommerz') throw new Error('SSLCOMMERZ Sandbox is not configured');
 const db=makeDatabase(env.DATABASE_URL);
 try { const results=await new PaymentSettlement(new PaymentService(db,new SslcommerzGateway(config),config)).reconcileBatch(); console.log(JSON.stringify(results)); if(results.some(r=>r.status==='RETRY_REQUIRED')) process.exitCode=1; }
 finally { await db.$disconnect(); }

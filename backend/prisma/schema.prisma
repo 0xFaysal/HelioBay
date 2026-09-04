@@ -422,6 +422,7 @@ model PaymentTransaction {
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
   amountMinor BigInt
   currency String @default("BDT")
+  provider String @default("SSLCOMMERZ")
   status PaymentStatus @default(PENDING)
   providerReference String? @unique
   gatewaySessionKey String?

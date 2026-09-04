@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import type { PaymentConfig } from '../../config/payments.js';
+import type { SslcommerzPaymentConfig } from '../../config/payments.js';
 import { ApiError } from '../../shared/errors/api-error.js';
 import type { GatewayOrder, PaymentGateway } from './contracts.js';
 import { minorToBdt, safeGatewayUrl } from './validation.js';
 const gatewayRecord = z.object({ status:z.string().max(30), tran_id:z.string().max(100), val_id:z.string().max(100).optional(), amount:z.string().max(30).optional(), currency:z.string().max(10).optional(), currency_type:z.string().max(10).optional(), currency_amount:z.string().max(30).optional(), risk_level:z.union([z.string().max(5),z.number().int()]).optional() });
 export class SslcommerzGateway implements PaymentGateway {
-  constructor(private config: PaymentConfig, private fetcher: typeof fetch = fetch) {}
+  constructor(private config: SslcommerzPaymentConfig, private fetcher: typeof fetch = fetch) {}
   private async call(path: string, fields: Record<string,string>, method: 'GET' | 'POST') {
     const params = new URLSearchParams({ ...fields, store_id:this.config.SSLCOMMERZ_STORE_ID, store_passwd:this.config.SSLCOMMERZ_STORE_PASSWORD });
     const url = new URL(path,'https://sandbox.sslcommerz.com');

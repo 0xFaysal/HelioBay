@@ -15,7 +15,13 @@ export function createApp(env: Env, readiness: () => Promise<unknown> = async ()
   app.set('json replacer', (_key: string, value: unknown) => typeof value === 'bigint' ? value.toString() : value);
   app.use((_req, res, next) => { res.locals.requestId = randomUUID(); res.locals.logger = logger; res.setHeader('X-Request-ID', res.locals.requestId); res.on('finish', () => logger.info({ requestId: res.locals.requestId, status: res.statusCode }, 'Request completed')); next(); });
   app.use(helmet());
-  const browserCors = cors({ origin(origin, cb) { cb(origin && !env.CORS_ORIGINS.includes(origin) ? new ApiError(403, 'ORIGIN_DENIED', 'Origin not allowed') : null, true); } });
+  const localOrigin = (origin: string) => {
+    try {
+      const url = new URL(origin);
+      return url.protocol === 'http:' && url.port === '8080' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || /^10\./.test(url.hostname) || /^192\.168\./.test(url.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(url.hostname));
+    } catch { return false; }
+  };
+  const browserCors = cors({ origin(origin, cb) { const allowed=!origin || env.CORS_ORIGINS.includes(origin) || env.APP_MODE === 'local' && localOrigin(origin); cb(allowed ? null : new ApiError(403, 'ORIGIN_DENIED', 'Origin not allowed'), true); } });
   // Hosted gateway POST navigation/IPN is public and authenticated by server-side validation.
   app.use((req,res,next) => {
     if(req.method==='POST' && /^\/api\/v1\/payments\/sslcommerz\/(success|fail|cancel|ipn)$/.test(req.path)) next();

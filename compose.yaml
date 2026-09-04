@@ -1,0 +1,229 @@
+name: heliobay-local
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: heliobay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/setup-local first}
+      POSTGRES_DB: heliobay
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [internal]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heliobay -d heliobay"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    environment:
+      MQTT_BACKEND_USERNAME: ${MQTT_BACKEND_USERNAME:-heliobay_backend}
+      MQTT_BACKEND_PASSWORD: ${MQTT_BACKEND_PASSWORD:?Run scripts/setup-local first}
+      MQTT_DEVICE_USERNAME: ${MQTT_DEVICE_USERNAME:-station_device}
+      MQTT_DEVICE_PASSWORD: ${MQTT_DEVICE_PASSWORD:?Run scripts/setup-local first}
+    entrypoint: ["sh", "/usr/local/bin/heliobay-mosquitto"]
+    volumes:
+      - ./infra/mosquitto/entrypoint.sh:/usr/local/bin/heliobay-mosquitto:ro
+      - mosquitto-data:/mosquitto/data
+    ports:
+      - "1883:1883"
+    networks: [internal, edge]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -u '$$MQTT_BACKEND_USERNAME' -P '$$MQTT_BACKEND_PASSWORD' -t heliobay/v1/health -C 1 -W 1 >/dev/null 2>&1 || test $$? -eq 27"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  firebase-emulator:
+    build:
+      context: ./infra/firebase
+    volumes:
+      - firebase-data:/data
+    ports:
+      - "9099:9099"
+      - "127.0.0.1:4400:4400"
+    networks: [internal, edge]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9099/emulator/v1/projects/demo-heliobay/config >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build:
+      context: ./backend
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://heliobay:${POSTGRES_PASSWORD}@postgres:5432/heliobay
+    command: ["npm", "run", "db:migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    restart: "no"
+
+  local-seed:
+    build:
+      context: ./backend
+      target: migrate
+    environment:
+      NODE_ENV: development
+      APP_MODE: local
+      DATABASE_URL: postgresql://heliobay:${POSTGRES_PASSWORD}@postgres:5432/heliobay
+      FIREBASE_PROJECT_ID: demo-heliobay
+      FIREBASE_AUTH_EMULATOR_HOST: firebase-emulator:9099
+      LOCAL_ADMIN_EMAIL: ${LOCAL_ADMIN_EMAIL:-admin@heliobay.local}
+      LOCAL_ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:?Run scripts/setup-local first}
+      LOCAL_USER_EMAIL: ${LOCAL_USER_EMAIL:-user@heliobay.local}
+      LOCAL_USER_PASSWORD: ${LOCAL_USER_PASSWORD:?Run scripts/setup-local first}
+      SIMULATOR_HMAC_KEY: ${SIMULATOR_HMAC_KEY:?Run scripts/setup-local first}
+      DEVICE_MODE: ${DEVICE_MODE:-hardware}
+    command: ["node", "dist/seed-local.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      firebase-emulator:
+        condition: service_healthy
+    networks: [internal]
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    environment:
+      NODE_ENV: development
+      APP_MODE: local
+      PORT: 4000
+      DATABASE_URL: postgresql://heliobay:${POSTGRES_PASSWORD}@postgres:5432/heliobay
+      CORS_ORIGINS: http://localhost:8080
+      FIREBASE_PROJECT_ID: demo-heliobay
+      FIREBASE_AUTH_EMULATOR_HOST: firebase-emulator:9099
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TRUST_PROXY_HOPS: 1
+      PAYMENT_PROVIDER: local-sandbox
+      PUBLIC_APP_URL: http://localhost:8080
+      API_PUBLIC_URL: http://localhost:8080
+      MAX_TOPUP_CREDITS: 10000
+      PAYMENT_TTL_MINUTES: 30
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_USERNAME: ${MQTT_BACKEND_USERNAME:-heliobay_backend}
+      MQTT_PASSWORD: ${MQTT_BACKEND_PASSWORD}
+      MQTT_CLIENT_ID: heliobay-backend-local
+      MQTT_TLS_ENABLED: "false"
+      ALLOW_DEVICE_SIMULATOR: "true"
+      SIMULATOR_HMAC_KEY: ${SIMULATOR_HMAC_KEY}
+    depends_on:
+      local-seed:
+        condition: service_completed_successfully
+      mosquitto:
+        condition: service_healthy
+    networks: [internal]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:4000/health/ready >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_APP_MODE: api
+        NEXT_PUBLIC_LOCAL_MODE: "true"
+        NEXT_PUBLIC_USE_FIREBASE_EMULATOR: "true"
+        NEXT_PUBLIC_FIREBASE_API_KEY: demo-api-key
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: localhost
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-heliobay
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-heliobay.appspot.com
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
+        NEXT_PUBLIC_FIREBASE_APP_ID: 1:000000000000:web:local
+    networks: [internal]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  reverse-proxy:
+    image: caddy:2.10.2-alpine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks: [edge, internal]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/health/ready >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  controller-simulator:
+    profiles: [simulator]
+    build:
+      context: ./backend
+      target: runtime
+    command: ["node", "dist/modules/simulator/cli.js"]
+    environment:
+      NODE_ENV: development
+      ALLOW_DEVICE_SIMULATOR: "true"
+      MQTT_URL: mqtt://mosquitto:1883
+      SIMULATOR_HMAC_KEY: ${SIMULATOR_HMAC_KEY}
+      SIMULATOR_USERNAME: ${MQTT_DEVICE_USERNAME:-station_device}
+      SIMULATOR_PASSWORD: ${MQTT_DEVICE_PASSWORD}
+      SIMULATOR_STATION: ST001
+      SIMULATOR_DEVICE: ESP32-ST001
+      SIMULATOR_BAY: BAY01
+      SIMULATOR_SPEED: ${SIMULATOR_SPEED:-1}
+      SIMULATOR_SCENARIO: ${SIMULATOR_SCENARIO:-normal}
+    depends_on:
+      backend:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks: [internal]
+    restart: unless-stopped
+
+  pgadmin:
+    profiles: [tools]
+    image: dpage/pgadmin4:9.8
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@heliobay.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?Run scripts/setup-local first}
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    restart: unless-stopped
+
+networks:
+  edge:
+  internal:
+    internal: true
+
+volumes:
+  postgres-data:
+  mosquitto-data:
+  firebase-data:
+  caddy-data:
+  caddy-config:
+  pgadmin-data:

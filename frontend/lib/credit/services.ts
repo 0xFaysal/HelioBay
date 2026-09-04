@@ -132,7 +132,7 @@ export const creditService = {
       if (amountMinor % 100 !== 0) throw new Error("Choose a whole number of Credits for SSLCOMMERZ.");
       const result = await request("/wallet/top-ups",z.object({transactionId:z.string(),GatewayPageURL:z.string().nullable(),status:z.string()}),{method:"POST",body:{credits:amountMinor/100},idempotencyKey:requestId});
       if (!result.GatewayPageURL) throw new Error(`Payment ${result.transactionId} is ${result.status.toLowerCase()}. Check payment history before creating another top-up.`);
-      return {paymentId:result.transactionId,GatewayPageURL:gatewayUrl(result.GatewayPageURL)};
+      return {paymentId:result.transactionId,GatewayPageURL:result.GatewayPageURL.startsWith("/wallet/sandbox/")?result.GatewayPageURL:gatewayUrl(result.GatewayPageURL)};
     },
     async payment(id: string, signal?: AbortSignal): Promise<Payment> {
       if (isDemo) return transaction(data => { Object.assign(data, advance(data, Date.now())); const user = actor(data, who()); const p = data.payments.find(p => p.id === id && (p.userId === user.id || user.role === "admin")); if (!p) throw new Error("Payment reference not found for this account."); return p; });
@@ -141,6 +141,12 @@ export const creditService = {
     async submitDemo(id: string, outcome: "success" | "failure" | "cancel" | "pending") {
       if (!isDemo) throw new Error("Only the backend can process payment callbacks.");
       return transaction(data => { const user = actor(data, who()); const p = data.payments.find(p => p.id === id && p.userId === user.id); if (!p) throw new Error("Payment not found."); if (p.status !== "pending" || p.submittedAt) return; p.submittedAt = new Date().toISOString(); p.demoOutcome = outcome; });
+    },
+    async submitLocal(id:string,outcome:"success"|"failure"|"cancel") {
+      if(isDemo)throw new Error("Local API sandbox is unavailable in browser demo mode.");
+      const result=mapPayment(await request(`/wallet/top-ups/${encoded(id)}/local-sandbox`,resourcePayment,{method:"POST",body:{outcome}}));
+      await creditService.refresh();
+      return result;
     },
     async adjust(userId: string, amountMinor: number, reason: string, requestId: string, kind: "adjustment" | "reversal" = "adjustment", ledgerId?:string) { if (!isDemo) return mutation(`/admin/users/${encoded(userId)}/wallet/adjustments`, kind==="reversal"?{ ledgerId, reason, kind:"REVERSAL" }:{ amountMinor:Math.abs(amountMinor).toString(), reason, kind:amountMinor<0?"ADMIN_DEBIT":"ADMIN_CREDIT" }, "POST", requestId); return transaction(data => {const original=kind==="reversal"?data.ledger.find(l=>l.id===ledgerId&&l.userId===userId):undefined;if(kind==="reversal"&&!original)throw new Error("Select the original ledger entry to reverse.");return adjust(data, who(), userId, original?-original.amountMinor:amountMinor, reason, Date.now(), requestId, kind);}); },
   },

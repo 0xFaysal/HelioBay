@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import { firebaseAuthRewrites } from "./lib/firebase/auth-routing.ts";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   // Isolate API-mode smoke builds from the regular development output.
   distDir: process.env.HELIOBAY_TEST_API === "true" ? ".next-api" : ".next",
   // Same-origin Firebase helper proxy for popup-free Google sign-in on Vercel.
